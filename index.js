@@ -3,8 +3,7 @@
  * Date : 2017-08-17
  */
 
-var Promise = require('promise'),
-    fs = require('fs'),
+var fs = require('fs'),
     path = require('path'),
     through = require('through2'),
     gutil = require('gulp-util'),

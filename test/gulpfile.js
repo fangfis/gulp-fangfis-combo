@@ -1,8 +1,6 @@
 var gulp = require('gulp'),
-    clean = require('gulp-clean'),
-    seajsCombo = require('../index'),
-    handlebars = require('gulp-handlebars'),
-    wrap = require('gulp-wrap');
+    del = require('del'),
+    seajsCombo = require('../index');
 
 var Vinyl = require('vinyl');
 var stream = require('stream');
@@ -23,8 +21,7 @@ var writeFile = function (fileData) {
 };
 
 gulp.task('clean', function () {
-    return gulp.src('./build/**/*.*')
-        .pipe(clean());
+    return del('./build/**/*.*');
 });
 gulp.task('a', ['clean'], function () {
     return gulp.src('src/a.js')

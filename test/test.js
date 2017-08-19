@@ -1,17 +1,15 @@
 var fs = require( 'fs' ),
     gulp = require( 'gulp' ),
     should = require( 'should' ),
-    gutil = require( 'gulp-util' ),
     assert = require( 'stream-assert' ),
-    handlebars = require( 'gulp-handlebars' ),
-    seajsCombo = require( '../index' );
+    fangfisCombo = require( '../index' );
 
 describe( 'gulp-fangfis-combo', function(){
-    describe( 'seajsCombo()', function(){
+    describe( 'fangfisCombo()', function(){
         // 测试忽略空文件
         it( 'should ignore null file', function( done ){
             gulp.src( 'hello.js' )
-                .pipe( seajsCombo() )
+                .pipe( fangfisCombo() )
                 .pipe( assert.length(0) )
                 .pipe( assert.end(done) );
         });
@@ -24,7 +22,7 @@ describe( 'gulp-fangfis-combo', function(){
                 }
 
                 gulp.src( 'src/a.js' )
-                    .pipe( seajsCombo() )
+                    .pipe( fangfisCombo() )
                     .pipe( assert.first(function( srcData ){
                         srcData.contents.should.eql( buildData );
                     }))
@@ -40,7 +38,7 @@ describe( 'gulp-fangfis-combo', function(){
                 }
 
                 gulp.src( 'src/r.js' )
-                    .pipe( seajsCombo() )
+                    .pipe( fangfisCombo() )
                     .pipe( assert.first(function( srcData ){
                         srcData.contents.should.eql( buildData );
                     }))
@@ -56,7 +54,7 @@ describe( 'gulp-fangfis-combo', function(){
                 }
 
                 gulp.src( 'src/f.js' )
-                    .pipe( seajsCombo({
+                    .pipe( fangfisCombo({
                         map : {
                             'src/g' : './g',
                             'src/h' : './h'
@@ -79,7 +77,7 @@ describe( 'gulp-fangfis-combo', function(){
                 }
 
                 gulp.src( 'src/c.js' )
-                    .pipe( seajsCombo({
+                    .pipe( fangfisCombo({
                         ignore : ['./e']
                     }))
                     .pipe( assert.first(function( srcData ){
@@ -97,7 +95,7 @@ describe( 'gulp-fangfis-combo', function(){
                 }
 
             gulp.src( 'src/f2.js' )
-                .pipe( seajsCombo({
+                .pipe( fangfisCombo({
                     map : {
                         'src/g' : './g',
                         'src/h' : './h'
@@ -120,7 +118,7 @@ describe( 'gulp-fangfis-combo', function(){
                 }
 
                 gulp.src( 'src/m.js' )
-                    .pipe( seajsCombo() )
+                    .pipe( fangfisCombo() )
                     .pipe( assert.first(function( srcData ){
                         srcData.contents.should.eql( buildData );
                     }))
@@ -136,7 +134,7 @@ describe( 'gulp-fangfis-combo', function(){
                 }
 
                 gulp.src( 'src/k.js' )
-                    .pipe( seajsCombo({
+                    .pipe( fangfisCombo({
                         map : {
                             'src/l' : './l'
                         }
@@ -157,7 +155,7 @@ describe( 'gulp-fangfis-combo', function(){
                     throw err;
                 }
                 gulp.src( 'src/async_a.js' )
-                    .pipe( seajsCombo() )
+                    .pipe( fangfisCombo() )
                     .pipe( assert.first(function( srcData ){
                         srcData.contents.should.eql( buildData );
                     }))
@@ -169,7 +167,7 @@ describe( 'gulp-fangfis-combo', function(){
                 }
 
                 gulp.src( 'src/async_a.js' )
-                    .pipe( seajsCombo(function (cons) {
+                    .pipe( fangfisCombo(function (cons) {
                         new Buffer(cons[0].contents).should.eql( buildData );
                     }) );
             });
@@ -182,7 +180,7 @@ describe( 'gulp-fangfis-combo', function(){
                     throw err;
                 }
                 gulp.src( 'src/async_c.js' )
-                    .pipe( seajsCombo() )
+                    .pipe( fangfisCombo() )
                     .pipe( assert.first(function( srcData ){
                         srcData.contents.should.eql( buildData );
                     }))
@@ -202,7 +200,7 @@ describe( 'gulp-fangfis-combo', function(){
             Promise.all([readFile('build/async_d.js'),readFile('build/async_e.js')]).then(function (data) {
                 var dData = data[0],eData=data[1];
                 gulp.src( 'src/async_c.js' )
-                .pipe( seajsCombo(function (cons) {
+                .pipe( fangfisCombo(function (cons) {
                     new Buffer(cons[0].contents).should.eql( eData );
                     new Buffer(cons[1].contents).should.eql( dData );
                 }) );

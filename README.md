@@ -13,18 +13,18 @@ $ npm install --save-dev gulp-fangfis-combo
 
 ``` javascript
 var gulp = require( 'gulp' ),
-    seajsCombo = require( 'gulp-fangfis-combo' );
+    fangfisCombo = require( 'gulp-fangfis-combo' );
 
-gulp.task( 'seajscombo', function(){
+gulp.task( 'fangfisCombo', function(){
     return gulp.src( 'src/js/main.js' )
-        .pipe( seajsCombo() )
+        .pipe( fangfisCombo() )
         .pipe( gulp.task('build/js') );
 });
 ```
 
 ## API
 
-### seajsCombo( [options,]callback)
+### fangfisCombo( [options,]callback)
 
 对于不支持的文件类型会直接忽略。
 
@@ -95,7 +95,7 @@ var writeFile = function (fileData) {
 
 gulp.task('async_a', ['clean'], function () {
     return gulp.src('src/async_a.js')
-        .pipe(seajsCombo(function (cons) {
+        .pipe(fangfisCombo(function (cons) {
             // cons Array 数组类型 回传异步模块合并后的异步模块数组
             /*  [ { id: 'async_b',
                     deps: [],
@@ -136,7 +136,7 @@ gulp 代码 :
 
 ``` javascript
 gulp.src( 'src/a.js' )
-    .pipe( seajsCombo() )
+    .pipe( fangfisCombo() )
     ...
 ```
 
@@ -162,7 +162,7 @@ gulp 代码 :
 
 ``` javascript
 gulp.src( 'src/main.js' )
-    .pipe( seajsCombo() )
+    .pipe( fangfisCombo() )
     ...
 ```
 
