@@ -73,6 +73,7 @@ map : {
 
 ``` javascript
 // 生成文件流
+var gulp = require('gulp');
 var Vinyl = require('vinyl');
 var stream = require('stream');
 var writeFile = function (fileData) {
