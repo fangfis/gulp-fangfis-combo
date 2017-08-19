@@ -11,7 +11,7 @@ $ npm install --save-dev gulp-fangfis-combo
 
 ## 使用
 
-```
+``` javascript
 var gulp = require( 'gulp' ),
     seajsCombo = require( 'gulp-fangfis-combo' );
 
@@ -24,10 +24,7 @@ gulp.task( 'seajscombo', function(){
 
 ## API
 
-### seajsCombo( [options,]function (cons) {
-
-    // do something code
-} )
+### seajsCombo( [options,]callback)
 
 对于不支持的文件类型会直接忽略。
 
@@ -45,19 +42,19 @@ Type : `Array`
 
 忽略模块列表。合并模块 `main` 时想忽略其以来模块 `global` 和 `common`，那么其配置规则如下：
 
-```
+``` javascript
 ignore : [ 'global', 'common' ]
 ```
 
 忽略配置有两种规则，如果需要忽略 `src/a` 和 `src/test/a` 2 个模块，直接配置不带路径的模块标识：
 
-```
+``` javascript
 ignore : [ 'a' ]
 ```
 
 如果上面两个模块中只想忽略其中一个，那么配置具体的路径：
 
-```
+``` javascript
 ignore : [ 'src/test/a' ]
 ```
 
@@ -65,7 +62,7 @@ ignore : [ 'src/test/a' ]
 
 使用 fang.use 时，模块标识为 `foo/bar/biz`，但是模块的文件路径基于 `gulp.src` 解析出来的路径是 `./biz.js`，那么使用 `map` 配置来映射这种关系。
 
-```
+``` javascript
 map : {
     'foo/bar/biz' : './biz'
 }
@@ -74,7 +71,7 @@ map : {
 
 所有异步加载的模块，插件会分析该异步模块的依赖模块并进行合并，通过回调的方式以数组的形式回传出来，以便我们做后续操作，下面做一个简单的例子
 
-```
+``` javascript
 // 生成文件流
 var Vinyl = require('vinyl');
 var stream = require('stream');
@@ -119,7 +116,7 @@ gulp.task('async_a', ['clean'], function () {
 
 模块 `a.js` :
 
-```
+``` javascript
 define(function(){
     var b = require( 'deps/b' );
     return 'a' + ' ' + b;
@@ -128,7 +125,7 @@ define(function(){
 
 模块 `b.js` :
 
-```
+``` javascript
 define(function(){
     return 'b';
 });
@@ -136,7 +133,7 @@ define(function(){
 
 gulp 代码 :
 
-```
+``` javascript
 gulp.src( 'src/a.js' )
     .pipe( seajsCombo() )
     ...
@@ -144,7 +141,7 @@ gulp.src( 'src/a.js' )
 
 合并好的 `a.js` :
 
-```
+``` javascript
 define('b',function(){
     return 'b';
 });
@@ -156,13 +153,13 @@ define('a',['b'],function(){
 
 文件 `main.js` :
 
-```
+``` javascript
 fang.use( 'a' );
 ```
 
 gulp 代码 :
 
-```
+``` javascript
 gulp.src( 'src/main.js' )
     .pipe( seajsCombo() )
     ...
@@ -170,7 +167,7 @@ gulp.src( 'src/main.js' )
 
 合并后的 `main.js` :
 
-```
+``` javascript
 define('b',function(){
     return 'b';
 });
