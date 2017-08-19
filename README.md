@@ -72,8 +72,8 @@ map : {
 所有异步加载的模块，插件会分析该异步模块的依赖模块并进行合并，通过回调的方式以数组的形式回传出来，以便我们做后续操作，下面做一个简单的例子
 
 ``` javascript
-// 生成文件流
 var gulp = require('gulp');
+// 生成文件流
 var Vinyl = require('vinyl');
 var stream = require('stream');
 var writeFile = function (fileData) {
