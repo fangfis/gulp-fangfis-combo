@@ -6,9 +6,9 @@
 var fs = require('fs'),
     path = require('path'),
     through = require('through2'),
-    gutil = require('gulp-util'),
+    chalk = require('chalk'),
     // rFirstStr = /[\s\r\n\=]/,
-    rDefine = /define\(\s*(['"].+?['"],(\s*\[(['"].+?['"])?\]\s*,)?)?/,
+    rDefine = /define\(\s*(['"].+?['"],(\s*\[[\s\S]*?(['"].*[\s\S]*?.*['"])?[\s\S]*?\]\s*,)?)?/,
     rDeps = /(['"])(.+?)\1/g,
     rAlias = /alias\s*\:([^\}]+)\}/,
     rPaths = /paths\s*\:([^\}]+)\}/,
@@ -17,8 +17,8 @@ var fs = require('fs'),
     rSeajsConfig = /fang\.config\([^\)]+\);?/g,
     rModId = /([^\\\/?]+?)(\.(?:js))?([\?#].*)?$/,
     rQueryHash = /[\?#].*$/,
-    rSeajsUse = /"(?:\\"|[^"])*"|'(?:\\'|[^'])*'|\/\*[\S\s]*?\*\/|\/(?:\\\/|[^\/\r\n])+\/(?=[^\/])|\/\/.*|\.\s*fang\.use|(?:^|[^$])\bseajs\.use\s*\((.+)/g,
-    rComments = /([^'"]\/\/.*)|(\/\*[\s\S]*?\*\/)/g,
+    rSeajsUse = /"(?:\\"|[^"])*"|'(?:\\'|[^'])*'|\/\*[\S\s]*?\*\/|\/(?:\\\/|[^\/\r\n])+\/(?=[^\/])|\/\/.*|\.\s*fang\(|(?:^|[^$])\bfang\((.+)/g,
+    rComments = /([^'"`(${.+})?]\/\/.*)|(\/\*[\s\S]*?\*\/)/g,
 
     rRequire = /[^.]\s*require\s*\(\s*(\[*(\s*["'][^'"\s]+["'][\s,\s]*)+\]*)\s*\)/g,
     rRequireAsync = /[^.]\s*require\.async\s*\(\s*(\[*(\s*["'][^'"\s]+["'][\s,\s]*)+\]*)\s*\)/g;
@@ -32,8 +32,8 @@ const PLUGIN_NAME = 'gulp-fangfis-cmobo';
  * param { String } 模块标识
  * return { Boolean } 是否在忽略列表中
  */
-var filterIgnore = function (ignore, id, origId) {
-        return ignore.some(function (item) {
+var filterIgnore = function(ignore, id, origId) {
+        return ignore.some(function(item) {
             var arr;
 
             // 含路径的模块id只过滤精确匹配的结果
@@ -59,14 +59,14 @@ var filterIgnore = function (ignore, id, origId) {
      * param{ String } config字符串
      * return{ Object } 提取出来的配置
      */
-    evalConfig = function (configStr) {
+    evalConfig = function(configStr) {
         var configArr = configStr,
             config = {};
 
         configStr = configStr.replace(/\{/, '');
         configArr = configStr.split(',');
 
-        configArr.forEach(function (item) {
+        configArr.forEach(function(item) {
             var index, arr, key, value;
 
             index = item.indexOf(':');
@@ -90,19 +90,19 @@ var filterIgnore = function (ignore, id, origId) {
      * param{ String } 文件内容
      * return{ Object } 提取出来的配置和提取后的文件内容
      */
-    parseConfig = function (contents) {
+    parseConfig = function(contents) {
         var config = {};
 
-        contents = contents.replace(rSeajsConfig, function ($) {
-            $.replace(rAlias, function (_, $1) {
+        contents = contents.replace(rSeajsConfig, function($) {
+            $.replace(rAlias, function(_, $1) {
                 config.alias = evalConfig($1);
             });
 
-            $.replace(rPaths, function (_, $1) {
+            $.replace(rPaths, function(_, $1) {
                 config.paths = evalConfig($1);
             });
 
-            $.replace(rVars, function (_, $1) {
+            $.replace(rVars, function(_, $1) {
                 config.vars = evalConfig($1);
             });
 
@@ -112,7 +112,7 @@ var filterIgnore = function (ignore, id, origId) {
         return {
             contents: contents,
             config: config
-        }
+        };
     },
 
     /*
@@ -123,10 +123,10 @@ var filterIgnore = function (ignore, id, origId) {
      * param { String } 基础路径
      * return { Array } 依赖模块的绝对路径列表
      */
-    mergePath = function (options, deps, base) {
+    mergePath = function(options, deps, base) {
         var config = options.config;
 
-        return deps.map(function (item, i) {
+        return deps.map(function(item, i) {
             var origId = item.origId,
                 arr, modId;
 
@@ -143,7 +143,7 @@ var filterIgnore = function (ignore, id, origId) {
             // 处理seajs.config => vars
             if (config.vars) {
                 if (~origId.indexOf('{')) {
-                    origId = origId.replace(rVar, function ($, $1) {
+                    origId = origId.replace(rVar, function($, $1) {
                         if (config.vars[$1]) {
                             return config.vars[$1];
                         }
@@ -163,7 +163,7 @@ var filterIgnore = function (ignore, id, origId) {
                 arr = origId.split('/');
                 modId = arr.splice(arr.length - 1, 1);
 
-                arr.forEach(function (_item, i) {
+                arr.forEach(function(_item, i) {
                     if (config.paths[_item]) {
                         arr[i] = config.paths[_item];
                     }
@@ -188,7 +188,7 @@ var filterIgnore = function (ignore, id, origId) {
      * param { String } 模块标识
      * return { Object } filePath: 过滤query和hash后的模块标识,id: 模块id,extName: 模块后缀
      */
-    modPathResolve = function (options, filePath) {
+    modPathResolve = function(options, filePath) {
         // 过滤query(?)和hash(#)
         filePath = filePath.replace(rQueryHash, '');
 
@@ -211,7 +211,7 @@ var filterIgnore = function (ignore, id, origId) {
      * param { string } 基本路徑
      * param { promise }
      */
-    getorigPath = function (filePath, base) {
+    getorigPath = function(filePath, base) {
         var extName = path.extname(filePath);
         var pt = path.resolve(base, filePath);
         if (!extName) pt = pt + '.js';
@@ -223,7 +223,7 @@ var filterIgnore = function (ignore, id, origId) {
      * param { string } 代码字符串
      * param { promise }
      */
-    deleteCodeComments = function (code) {
+    deleteCodeComments = function(code) {
         // 另一种思路更简便的办法
         // 将'://'全部替换为特殊字符，删除注释代码后再将其恢复回来
         var tmp1 = ':\/\/';
@@ -242,11 +242,11 @@ var filterIgnore = function (ignore, id, origId) {
      * param { Array } 依赖模块
      * param { promise }
      */
-    readDeps = function (options, parentDeps) {
+    readDeps = function(options, parentDeps) {
         var childDeps = [];
 
-        var promiseArr = parentDeps.map(function (item) {
-            return new Promise(function (resolve, reject) {
+        var promiseArr = parentDeps.map(function(item) {
+            return new Promise(function(resolve, reject) {
                 var id = item.id,
                     extName = item.extName,
                     filePath = item.path,
@@ -292,15 +292,15 @@ var filterIgnore = function (ignore, id, origId) {
             });
         });
 
-        return Promise.all(promiseArr).then(function () {
+        return Promise.all(promiseArr).then(function() {
                 if (childDeps.length) {
                     return readDeps(options, childDeps);
                 }
-            }, function (err) {
-                gutil.log(gutil.colors.red(PLUGIN_NAME + ' Error: ' + err));
+            }, function(err) {
+                console.log(chalk.red(PLUGIN_NAME + ' Error: ' + err));
             })
-            .catch(function (err) {
-                gutil.log(gutil.colors.red(PLUGIN_NAME + ' error: ' + err.message));
+            .catch(function(err) {
+                console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
                 console.log(err.stack);
             });
     },
@@ -312,14 +312,14 @@ var filterIgnore = function (ignore, id, origId) {
      * param { Object } 文件内容
      * return { Array } 依赖模块列表
      */
-    pullDeps = function (options, reg, contents) {
+    pullDeps = function(options, reg, contents) {
         var deps = [],
             matches, origId, depPathResult;
 
         reg.lastIndex = 0;
         // 删除代码注释
         contents = deleteCodeComments(contents);
-        contents.replace(reg, function (m, m1) {
+        contents.replace(reg, function(m, m1) {
             if (m1) {
                 m1 = eval(m1);
                 if (typeof m1 === 'string') {
@@ -357,7 +357,7 @@ var filterIgnore = function (ignore, id, origId) {
      * param { Object } 模块数据
      * return { Array } 依赖模块数据列表
      */
-    parseDeps = function (options, contents, modData) {
+    parseDeps = function(options, contents, modData) {
         var isSeajsUse = !!~contents.indexOf('fang.use('),
             id = modData.id,
             deps = [],
@@ -380,7 +380,7 @@ var filterIgnore = function (ignore, id, origId) {
 
             matches = contents.match(rSeajsUse);
 
-            matches.forEach(function (item) {
+            matches.forEach(function(item) {
                 var _deps = [];
 
                 if (~item.indexOf('fang.use')) {
@@ -413,7 +413,7 @@ var filterIgnore = function (ignore, id, origId) {
      * param { Object } 模块数据
      * return { String } 文件内容
      */
-    transform = function (options, modData) {
+    transform = function(options, modData) {
         var contents = modData.contents,
             isSeajsUse = !!~contents.indexOf('fang.use('),
             origId = modData.origId,
@@ -427,7 +427,7 @@ var filterIgnore = function (ignore, id, origId) {
         // 标准模块
         if (!isSeajsUse) {
             // 修改依赖模块require内容
-            contents = contents.replace(rRequire, function (m, m1) {
+            contents = contents.replace(rRequire, function(m, m1) {
                 var result = m,
                     depId, depOrigId, depPathResult, origPath;
                 if (m1) {
@@ -459,7 +459,7 @@ var filterIgnore = function (ignore, id, origId) {
             });
 
             // 修改异步相对路径模块require.async内容
-            contents = contents.replace(rRequireAsync, function (m, m1) {
+            contents = contents.replace(rRequireAsync, function(m, m1) {
                 var result = m,
                     depId, depOrigId, depPathResult, origPath;
                 if (m1) {
@@ -489,7 +489,7 @@ var filterIgnore = function (ignore, id, origId) {
             });
 
             // 为匿名模块添加模块名，同时将依赖列表添加到头部
-            contents = contents.replace(rDefine, function ($, $1, $2) {
+            contents = contents.replace(rDefine, function($, $1, $2) {
                 var origPath = getorigPath(filePath, base);
                 var id = fileIdMap[modData.id][origPath];
                 $ = $.replace($1, '');
@@ -498,11 +498,11 @@ var filterIgnore = function (ignore, id, origId) {
                     "define('" + id + "',[],";
             });
         } else {
-            contents = contents.replace(rSeajsUse, function ($) {
+            contents = contents.replace(rSeajsUse, function($) {
                 var result = $;
 
                 if (~$.indexOf('fang.use(')) {
-                    result = $.replace(rDeps, function ($, _, $2) {
+                    result = $.replace(rDeps, function($, _, $2) {
                         var _result = $,
                             depPathResult, depId;
 
@@ -529,12 +529,12 @@ var filterIgnore = function (ignore, id, origId) {
      * param { Object } 配置参数
      * return { String } 文件内容
      */
-    comboContent = function (options) {
+    comboContent = function(options) {
         var contents = '',
             fileIdMap = options.fileIdMap,
             fileMap = options.fileMap,
             newModArr = [];
-        options.modArr.forEach(function (item) {
+        options.modArr.forEach(function(item) {
             var id = item.id,
                 filePath = item.path;
             var base = options.base || path.resolve(item.path, '..');
@@ -545,14 +545,10 @@ var filterIgnore = function (ignore, id, origId) {
             }
         });
 
-        newModArr.forEach(function (item) {
+        newModArr.forEach(function(item) {
             var newContents = transform(options, item);
             if (newContents) {
                 contents = newContents + '\n' + contents;
-            }
-
-            if (options.verbose) {
-                gutil.log(PLUGIN_NAME + ':', '✔ Module [' + item.path + '] combo success.');
             }
         });
 
@@ -566,8 +562,8 @@ var filterIgnore = function (ignore, id, origId) {
      * param { String } 模块的绝对路径
      * param { promise }
      */
-    parseContent = function (options, contents, filePath, origId, asyncMod) {
-        return new Promise(function (resolve) {
+    parseContent = function(options, contents, filePath, origId, asyncMod) {
+        return new Promise(function(resolve) {
             // 读取主入口路径信息
             // eg: {id: "a", path: "/Users/tankunpeng/WebSite/gulp-seajs-combo/test/src/a.js", extName: ".js"}
             var pathResult = modPathResolve(options, filePath);
@@ -591,11 +587,11 @@ var filterIgnore = function (ignore, id, origId) {
      * param { Object } 对象数组
      * param { promise }
      */
-    setIdMap = function (options, allArr) {
+    setIdMap = function(options, allArr) {
         var fileIdMap = options.fileIdMap;
         var fileMap = options.fileMap;
         if (allArr.length) {
-            allArr.forEach(function (item) {
+            allArr.forEach(function(item) {
                 var idJson = fileIdMap[item.id];
                 var base = options.base || path.resolve(item.path, '..');
                 var origPath = getorigPath(item.path, base);
@@ -628,7 +624,7 @@ var filterIgnore = function (ignore, id, origId) {
      * param { function } 回调
      * param { promise }
      */
-    paseAsyncContent = function (options, cb) {
+    paseAsyncContent = function(options, cb) {
         var arr = options.asyncTemMod,
             contents = '',
             num = arr.length - 1;
@@ -637,7 +633,7 @@ var filterIgnore = function (ignore, id, origId) {
             cb && cb(options.asyncModArr);
             return;
         }
-        var preAsyncContent = function () {
+        var preAsyncContent = function() {
             var item = arr[num];
             options.modArr = [];
             var extName = path.extname(item.path);
@@ -649,7 +645,7 @@ var filterIgnore = function (ignore, id, origId) {
                 contents = fs.readFileSync(item.path, options.encoding);
                 item.contents = contents;
                 item.asyncMod = true;
-                parseContent(options, contents, item.path, item.origId, item.asyncMod).then(function () {
+                parseContent(options, contents, item.path, item.origId, item.asyncMod).then(function() {
 
                     // 记录加载id防止重复加载
                     var modArr = options.modArr;
@@ -671,7 +667,7 @@ var filterIgnore = function (ignore, id, origId) {
                     }
                     preAsyncContent();
 
-                }).catch(function (err) {
+                }).catch(function(err) {
                     gutil.log(gutil.colors.red(PLUGIN_NAME + ' error: ' + err.message));
                     console.log(err.stack);
                 });
@@ -684,7 +680,7 @@ var filterIgnore = function (ignore, id, origId) {
     },
 
     // 插件入口函数
-    createStream = function (options, cb) {
+    createStream = function(options, cb) {
         if (typeof options === 'function') {
             cb = options;
         }
@@ -694,7 +690,7 @@ var filterIgnore = function (ignore, id, origId) {
             asyncTemMod: [],
             fileIdMap: {},
             fileMap: {},
-            config: {},
+            config: options.config || {},
             idnum: 0,
             contents: '',
             encoding: 'UTF-8',
@@ -718,10 +714,10 @@ var filterIgnore = function (ignore, id, origId) {
             }
         }
 
-        return through.obj(function (file, enc, callback) {
+        return through.obj(function(file, enc, callback) {
             if (file.isBuffer()) {
                 parseContent(o, file.contents.toString(), file.path)
-                    .then(function () {
+                    .then(function() {
                         // 记录加载id防止重复加载
                         var modArr = o.modArr;
                         var asyncTemMod = o.asyncTemMod;
@@ -735,7 +731,7 @@ var filterIgnore = function (ignore, id, origId) {
                         }
                         callback(null, file);
                     })
-                    .catch(function (err) {
+                    .catch(function(err) {
                         gutil.log(gutil.colors.red(PLUGIN_NAME + ' error: ' + err.message));
                         console.log(err.stack);
                         callback(null, file);

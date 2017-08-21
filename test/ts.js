@@ -25,12 +25,18 @@ var writeFile = function(fileData) {
 };
 var a = function() {
     delFn(function() {
-        gulp.src('src/async_a.js')
+        gulp.src('dev/js/detail/entry_dsdetail_main.js')
             .pipe(seajsCombo({
-                base: './src',
-                ignore: ['b']
+                base: 'dev/js',
+                ignore: ['jquery'],
+                config: {
+                    alias: {
+                        jquery: 'jquery',
+                        util: 'plugins/util'
+                    }
+                }
             }, function(cons) {
-                console.log(cons);
+                // console.log(cons);
                 writeFile(cons);
             }))
             .pipe(gulp.dest('build'));
