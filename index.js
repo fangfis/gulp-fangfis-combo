@@ -666,11 +666,11 @@ var filterIgnore = function(ignore, id, origId) {
                     preAsyncContent();
 
                 }).catch(function(err) {
-                    gutil.log(gutil.colors.red(PLUGIN_NAME + ' error: ' + err.message));
+                    console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
                     console.log(err.stack);
                 });
             } catch (_) {
-                gutil.log(gutil.colors.red(PLUGIN_NAME + ' error: File [' + item.path + '] not found.'));
+                console.log(chalk.red(PLUGIN_NAME + ' error: File [' + item.path + '] not found.'));
             }
             arr.pop();
         };
@@ -730,7 +730,7 @@ var filterIgnore = function(ignore, id, origId) {
                         callback(null, file);
                     })
                     .catch(function(err) {
-                        gutil.log(gutil.colors.red(PLUGIN_NAME + ' error: ' + err.message));
+                        console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
                         console.log(err.stack);
                         callback(null, file);
                     });
