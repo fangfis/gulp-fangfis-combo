@@ -535,8 +535,6 @@ var filterIgnore = function(ignore, id, origId) {
             fileMap = options.fileMap,
             newModArr = [];
         options.modArr.forEach(function(item) {
-            var id = item.id,
-                filePath = item.path;
             var base = options.base || path.resolve(item.path, '..');
             var origPath = getorigPath(item.path, base);
             if (!fileMap[origPath]) {
@@ -545,9 +543,13 @@ var filterIgnore = function(ignore, id, origId) {
             }
         });
 
+
+        if (newModArr.length > 1) console.log(chalk.cyan(PLUGIN_NAME + ': '), 'Module ' + chalk.yellow(newModArr[0].id + ' starting combo'));
         newModArr.forEach(function(item) {
             var newContents = transform(options, item);
             if (newContents) {
+                var pathStr = path.extname(item.path) ? item.path : item.path + '.js';
+                console.log(chalk.green('                     ✔ Module ' + pathStr));
                 contents = newContents + '\n' + contents;
             }
         });
@@ -596,10 +598,6 @@ var filterIgnore = function(ignore, id, origId) {
                 var base = options.base || path.resolve(item.path, '..');
                 var origPath = getorigPath(item.path, base);
                 var nameId = item.id;
-                // 设置filemap 标识是否combo
-                if (fileMap[origPath]) {
-                    fileMap[origPath] = false;
-                }
 
                 // 设置Idmap 标识模块id 防止id重复
                 if (idJson) {
