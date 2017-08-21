@@ -176,7 +176,7 @@ var filterIgnore = function(ignore, id, origId) {
             return {
                 id: item.id,
                 extName: item.extName,
-                path: path.resolve(base, origId),
+                path: origId.slice(0, 4) === 'http' || origId.slice(0, 2) === '//'?origId:path.resolve(base, origId),
                 origId: origId
             };
         });
@@ -550,8 +550,6 @@ var filterIgnore = function(ignore, id, origId) {
             if (newContents) {
                 contents = newContents + '\n' + contents;
             }
-            var pathStr = path.extname(item.path) ? item.path : item.path + '.js';
-            console.log(chalk.cyan(PLUGIN_NAME + ': '), chalk.green('✔ Module ' + pathStr));
         });
 
         return new Buffer(contents);
@@ -670,11 +668,11 @@ var filterIgnore = function(ignore, id, origId) {
                     preAsyncContent();
 
                 }).catch(function(err) {
-                    console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
+                    gutil.log(gutil.colors.red(PLUGIN_NAME + ' error: ' + err.message));
                     console.log(err.stack);
                 });
             } catch (_) {
-                console.log(chalk.red(PLUGIN_NAME + ' error: File [' + item.path + '] not found.'));
+                gutil.log(gutil.colors.red(PLUGIN_NAME + ' error: File [' + item.path + '] not found.'));
             }
             arr.pop();
         };
@@ -734,7 +732,7 @@ var filterIgnore = function(ignore, id, origId) {
                         callback(null, file);
                     })
                     .catch(function(err) {
-                        console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
+                        gutil.log(gutil.colors.red(PLUGIN_NAME + ' error: ' + err.message));
                         console.log(err.stack);
                         callback(null, file);
                     });
