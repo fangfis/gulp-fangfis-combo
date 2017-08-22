@@ -25,14 +25,17 @@ var writeFile = function(fileData) {
 };
 var a = function() {
     delFn(function() {
-        gulp.src('dev/js/detail/entry_dsdetail_main.js')
+        gulp.src('jslib/modules/esf/main.js')
             .pipe(seajsCombo({
-                base: 'dev/js',
+                base: 'jslib',
                 ignore: ['jquery'],
                 config: {
                     alias: {
                         jquery: 'jquery',
                         util: 'plugins/util'
+                    },
+                    paths: {
+                        count: '//js.soufunimg.com'
                     }
                 }
             }, function(cons) {

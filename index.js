@@ -21,7 +21,7 @@ var fs = require('fs'),
     rComments = /([^'"`(${.+})?]\/\/.*)|(\/\*[\s\S]*?\*\/)/g,
 
     rRequire = /[^.]\s*require\s*\(\s*(\[*(\s*["'][^'"\s]+["'][\s,\s]*)+\]*)\s*\)/g,
-    rRequireAsync = /[^.]\s*require\.async\s*\(\s*(\[*(\s*["'][^'"\s]+["'][\s,\s]*)+\]*)\s*\)/g;
+    rRequireAsync = /[^.]\s*require\.async\s*\(\s*(\[*(\s*["'][^'"\s]+["'][\s,\s]*)+\]*)\s*\)?/g;
 
 const PLUGIN_NAME = 'gulp-fangfis-cmobo';
 
@@ -176,7 +176,7 @@ var filterIgnore = function(ignore, id, origId) {
             return {
                 id: item.id,
                 extName: item.extName,
-                path: origId.slice(0, 4) === 'http' || origId.slice(0, 2) === '//'?origId:path.resolve(base, origId),
+                path: origId.slice(0, 4) === 'http' || origId.slice(0, 2) === '//' ? origId : path.resolve(base, origId),
                 origId: origId
             };
         });
@@ -321,6 +321,11 @@ var filterIgnore = function(ignore, id, origId) {
         contents = deleteCodeComments(contents);
         contents.replace(reg, function(m, m1) {
             if (m1) {
+                if (m1.indexOf('[') > -1 && m1.indexOf(']') < 0 || m1.indexOf('[') < 0 && m1.indexOf(']') > -1) {
+                    return m;
+                } else if (m1.indexOf('[') < 0 && m1.indexOf(']') < 0) {
+                    m1 = m1.replace(/\s*,\s*/g, '');
+                }
                 m1 = eval(m1);
                 if (typeof m1 === 'string') {
                     origId = m1;
@@ -463,6 +468,11 @@ var filterIgnore = function(ignore, id, origId) {
                 var result = m,
                     depId, depOrigId, depPathResult, origPath;
                 if (m1) {
+                    if (m1.indexOf('[') > -1 && m1.indexOf(']') < 0 || m1.indexOf('[') < 0 && m1.indexOf(']') > -1) {
+                        return m;
+                    } else if (m1.indexOf('[') < 0 && m1.indexOf(']') < 0) {
+                        m1 = m1.replace(/\s*,\s*/g, '');
+                    }
                     m1 = eval(m1);
                     if (typeof m1 === 'string') {
                         if (m1 && m1.slice(0, 4) !== 'http' && m1.slice(0, 2) !== '//') {
@@ -639,40 +649,53 @@ var filterIgnore = function(ignore, id, origId) {
                 item.path += '.js';
                 item.extName = '.js';
             }
-            try {
-                contents = fs.readFileSync(item.path, options.encoding);
-                item.contents = contents;
+            if (item.origId.slice(0, 4) === 'http' || item.origId.slice(0, 2) === '//') {
+                arr.pop();
                 item.asyncMod = true;
-                parseContent(options, contents, item.path, item.origId, item.asyncMod).then(function() {
+                num--;
+                if (num < 0) {
+                    paseAsyncContent(options, cb);
+                    return;
+                }
 
-                    // 记录加载id防止重复加载
-                    var modArr = options.modArr;
-                    var asyncTemMod = options.asyncTemMod;
-                    var allArr = modArr.concat(asyncTemMod);
-                    setIdMap(options, allArr);
-                    var contents = comboContent(options);
-                    // modArr 第0个为入口文件
-                    var fileInfo = modArr.length ? modArr[0] : {};
+                preAsyncContent();
+            } else {
+                try {
+                    contents = fs.readFileSync(item.path, options.encoding);
+                    item.contents = contents;
+                    item.asyncMod = true;
+                    parseContent(options, contents, item.path, item.origId, item.asyncMod).then(function() {
 
-                    if (contents.length) {
-                        fileInfo.contents = contents.toString();
-                        options.asyncModArr.push(fileInfo);
-                    }
-                    num--;
-                    if (num < 0) {
-                        paseAsyncContent(options, cb);
-                        return;
-                    }
-                    preAsyncContent();
+                        // 记录加载id防止重复加载
+                        var modArr = options.modArr;
+                        var asyncTemMod = options.asyncTemMod;
+                        var allArr = modArr.concat(asyncTemMod);
+                        setIdMap(options, allArr);
+                        var contents = comboContent(options);
+                        // modArr 第0个为入口文件
+                        var fileInfo = modArr.length ? modArr[0] : {};
 
-                }).catch(function(err) {
-                    console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
-                    console.log(err.stack);
-                });
-            } catch (_) {
-                console.log(chalk.red(PLUGIN_NAME + ' error: File [' + item.path + '] not found.'));
+                        if (contents.length) {
+                            fileInfo.contents = contents.toString();
+                            options.asyncModArr.push(fileInfo);
+                        }
+                        num--;
+                        if (num < 0) {
+                            paseAsyncContent(options, cb);
+                            return;
+                        }
+                        preAsyncContent();
+
+                    }).catch(function(err) {
+                        console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
+                        console.log(err.stack);
+                    });
+                } catch (_) {
+                    console.log(chalk.red(PLUGIN_NAME + ' error: File [' + item.path + '] not found.'));
+                }
+                arr.pop();
             }
-            arr.pop();
+
         };
         preAsyncContent();
     },
