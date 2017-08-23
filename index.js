@@ -8,7 +8,7 @@ var fs = require('fs'),
     through = require('through2'),
     chalk = require('chalk'),
     // rFirstStr = /[\s\r\n\=]/,
-    rDefine = /define\(\s*(['"].+?['"],(\s*\[[\s\S]*?(['"].*[\s\S]*?.*['"])?[\s\S]*?\]\s*,)?)?/,
+    rDefine = /define\s*\([\s\r\n]*(['"][^'"]+['"][\s\r\n]*,)?[\s\r\n]*(\[[^\]]*\][\s\r\n]*,)?/,
     rDeps = /(['"])(.+?)\1/g,
     rAlias = /alias\s*\:([^\}]+)\}/,
     rPaths = /paths\s*\:([^\}]+)\}/,
@@ -20,8 +20,8 @@ var fs = require('fs'),
     rSeajsUse = /"(?:\\"|[^"])*"|'(?:\\'|[^'])*'|\/\*[\S\s]*?\*\/|\/(?:\\\/|[^\/\r\n])+\/(?=[^\/])|\/\/.*|\.\s*fang\(|(?:^|[^$])\bfang\((.+)/g,
     rComments = /([^'"`(${.+})?]\/\/.*)|(\/\*[\s\S]*?\*\/)/g,
 
-    rRequire = /[^.]\s*require\s*\(\s*(\[*(\s*["'][^'"\s]+["'][\s,\s]*)+\]*)\s*\)/g,
-    rRequireAsync = /[^.]\s*require\.async\s*\(\s*(\[*(\s*["'][^'"\s]+["'][\s,\s]*)+\]*)\s*\)?/g;
+    rRequire = /[^\.]\s*\brequire\s*\([\s\r\n]*((['"][^'"]+['"][\s\r\n]*)|(\[[^\]]*\][\s\r\n]*))/g,
+    rRequireAsync = /[^\.]\s*\brequire\.async\s*\([\s\r\n]*((['"][^'"]+['"][\s\r\n]*)|(\[[^\]]*\][\s\r\n]*))/g;
 
 const PLUGIN_NAME = 'gulp-fangfis-cmobo';
 
@@ -123,56 +123,66 @@ var filterIgnore = function(ignore, id, origId) {
      * param { String } 基础路径
      * return { Array } 依赖模块的绝对路径列表
      */
-    mergePath = function(options, deps, base) {
-        var config = options.config;
+    margeConfig = function(options, origId) {
+        var config = options.config,
+            arr, modId;
+        // 处理build.json => map
+        if (options.map && options.map[origId]) {
+            origId = options.map[origId];
+        }
 
-        return deps.map(function(item, i) {
-            var origId = item.origId,
-                arr, modId;
+        // 处理seajs.config => vars
+        if (config.vars) {
+            if (~origId.indexOf('{')) {
+                origId = origId.replace(rVar, function($, $1) {
+                    if (config.vars[$1]) {
+                        return config.vars[$1];
+                    }
+
+                    return $;
+                });
+            }
+        }
+
+        // 处理seajs.config => alias
+        if (config.alias && config.alias[origId]) {
+            origId = config.alias[origId];
+        }
+
+        // 处理seajs.config => paths
+        if (config.paths) {
+            arr = origId.split('/');
+            modId = arr.splice(arr.length - 1, 1);
+
+            arr.forEach(function(_item, i) {
+                if (config.paths[_item]) {
+                    arr[i] = config.paths[_item];
+                }
+            });
+
+            arr = arr.concat(modId);
+            origId = arr.join('/');
+        }
+        return origId;
+    },
+
+    /*
+     * 基于base将依赖模块的相对路径转化成绝对路径
+     * 同时对seajs.config中的paths、alias、vars，还有options.map进行处理
+     * param { Object } 数据存储对象
+     * param { Array } 依赖模块的相对路径列表
+     * param { String } 基础路径
+     * return { Array } 依赖模块的绝对路径列表
+     */
+    mergePath = function(options, deps, base) {
+        return deps.map(function(item) {
+            var origId = item.origId;
 
             // 防止多次merge
             if (item.path) {
                 return;
             }
-
-            // 处理build.json => map
-            if (options.map && options.map[origId]) {
-                origId = options.map[origId];
-            }
-
-            // 处理seajs.config => vars
-            if (config.vars) {
-                if (~origId.indexOf('{')) {
-                    origId = origId.replace(rVar, function($, $1) {
-                        if (config.vars[$1]) {
-                            return config.vars[$1];
-                        }
-
-                        return $;
-                    });
-                }
-            }
-
-            // 处理seajs.config => alias
-            if (config.alias && config.alias[origId]) {
-                origId = config.alias[origId];
-            }
-
-            // 处理seajs.config => paths
-            if (config.paths) {
-                arr = origId.split('/');
-                modId = arr.splice(arr.length - 1, 1);
-
-                arr.forEach(function(_item, i) {
-                    if (config.paths[_item]) {
-                        arr[i] = config.paths[_item];
-                    }
-                });
-
-                arr = arr.concat(modId);
-                origId = arr.join('/');
-            }
-
+            origId = margeConfig(options, origId);
             return {
                 id: item.id,
                 extName: item.extName,
@@ -312,7 +322,7 @@ var filterIgnore = function(ignore, id, origId) {
      * param { Object } 文件内容
      * return { Array } 依赖模块列表
      */
-    pullDeps = function(options, reg, contents) {
+    pullDeps = function(options, reg, contents, modData) {
         var deps = [],
             matches, origId, depPathResult;
 
@@ -320,13 +330,13 @@ var filterIgnore = function(ignore, id, origId) {
         // 删除代码注释
         contents = deleteCodeComments(contents);
         contents.replace(reg, function(m, m1) {
-            if (m1) {
-                if (m1.indexOf('[') > -1 && m1.indexOf(']') < 0 || m1.indexOf('[') < 0 && m1.indexOf(']') > -1) {
-                    return m;
-                } else if (m1.indexOf('[') < 0 && m1.indexOf(']') < 0) {
-                    m1 = m1.replace(/\s*,\s*/g, '');
-                }
+            try {
                 m1 = eval(m1);
+            } catch (err) {
+                m1 = '';
+                console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message + '\n                   file: ' + (modData ? modData.path : '')));
+            }
+            if (m1) {
                 if (typeof m1 === 'string') {
                     origId = m1;
                     if (origId && origId.slice(0, 4) !== 'http' && origId.slice(0, 2) !== '//') {
@@ -371,8 +381,8 @@ var filterIgnore = function(ignore, id, origId) {
 
         // 标准模块
         if (!isSeajsUse) {
-            deps = pullDeps(options, rRequire, contents);
-            asyncDeps = pullDeps(options, rRequireAsync, contents);
+            deps = pullDeps(options, rRequire, contents, modData);
+            asyncDeps = pullDeps(options, rRequireAsync, contents, modData);
         }
         // 解析seajs.use
         else {
@@ -421,7 +431,7 @@ var filterIgnore = function(ignore, id, origId) {
     transform = function(options, modData) {
         var contents = modData.contents,
             isSeajsUse = !!~contents.indexOf('fang.use('),
-            origId = modData.origId,
+            origId = margeConfig(options, modData.origId),
             asyncMod = modData.asyncMod,
             filePath = modData.path,
             fileIdMap = options.fileIdMap,
@@ -435,9 +445,15 @@ var filterIgnore = function(ignore, id, origId) {
             contents = contents.replace(rRequire, function(m, m1) {
                 var result = m,
                     depId, depOrigId, depPathResult, origPath;
-                if (m1) {
+                try {
                     m1 = eval(m1);
+                } catch (err) {
+                    m1 = '';
+                    // console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
+                }
+                if (m1) {
                     if (typeof m1 === 'string') {
+                        m1 = margeConfig(options, m1);
                         if (m1 && m1.slice(0, 4) !== 'http' && origId.slice(0, 2) !== '//') {
                             depPathResult = modPathResolve(options, m1);
                             depOrigId = depPathResult.path;
@@ -449,6 +465,7 @@ var filterIgnore = function(ignore, id, origId) {
                     } else if (Array.isArray(m1)) {
                         for (var i = 0; i < m1.length; i++) {
                             var tmpId = m1[i];
+                            tmpId = margeConfig(options, tmpId);
                             if (tmpId && tmpId.slice(0, 4) !== 'http' && tmpId.slice(0, 2) !== '//') {
                                 depPathResult = modPathResolve(options, m1[i]);
                                 depOrigId = depPathResult.path;
@@ -467,14 +484,15 @@ var filterIgnore = function(ignore, id, origId) {
             contents = contents.replace(rRequireAsync, function(m, m1) {
                 var result = m,
                     depId, depOrigId, depPathResult, origPath;
-                if (m1) {
-                    if (m1.indexOf('[') > -1 && m1.indexOf(']') < 0 || m1.indexOf('[') < 0 && m1.indexOf(']') > -1) {
-                        return m;
-                    } else if (m1.indexOf('[') < 0 && m1.indexOf(']') < 0) {
-                        m1 = m1.replace(/\s*,\s*/g, '');
-                    }
+                try {
                     m1 = eval(m1);
+                } catch (err) {
+                    m1 = '';
+                    // console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
+                }
+                if (m1) {
                     if (typeof m1 === 'string') {
+                        m1 = margeConfig(options, m1);
                         if (m1 && m1.slice(0, 4) !== 'http' && m1.slice(0, 2) !== '//') {
                             depPathResult = modPathResolve(options, m1);
                             depOrigId = depPathResult.path;
@@ -485,6 +503,7 @@ var filterIgnore = function(ignore, id, origId) {
                     } else if (Array.isArray(m1)) {
                         for (var i = 0; i < m1.length; i++) {
                             var tmpId = m1[i];
+                            tmpId = margeConfig(options, tmpId);
                             if (tmpId && tmpId.slice(0, 4) !== 'http' && tmpId.slice(0, 2) !== '//') {
                                 depPathResult = modPathResolve(options, m1[i]);
                                 depOrigId = depPathResult.path;
@@ -554,7 +573,7 @@ var filterIgnore = function(ignore, id, origId) {
         });
 
 
-        if (newModArr.length > 1) console.log(chalk.cyan(PLUGIN_NAME + ': '), 'Module ' + chalk.yellow(newModArr[0].id + ' starting combo'));
+        if (newModArr.length > 0) console.log(chalk.cyan(PLUGIN_NAME + ': '), 'Module ' + chalk.yellow(newModArr[0].id + ' starting combo'));
         newModArr.forEach(function(item) {
             var newContents = transform(options, item);
             if (newContents) {
@@ -660,6 +679,7 @@ var filterIgnore = function(ignore, id, origId) {
 
                 preAsyncContent();
             } else {
+                arr.pop();
                 try {
                     contents = fs.readFileSync(item.path, options.encoding);
                     item.contents = contents;
@@ -693,7 +713,6 @@ var filterIgnore = function(ignore, id, origId) {
                 } catch (_) {
                     console.log(chalk.red(PLUGIN_NAME + ' error: File [' + item.path + '] not found.'));
                 }
-                arr.pop();
             }
 
         };

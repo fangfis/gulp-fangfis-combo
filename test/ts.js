@@ -25,9 +25,9 @@ var writeFile = function(fileData) {
 };
 var a = function() {
     delFn(function() {
-        gulp.src('jslib/modules/esf/main.js')
+        gulp.src('dev/js/detail/entry_sfbdetail_main.js')
             .pipe(seajsCombo({
-                base: 'jslib',
+                base: 'dev/js',
                 ignore: ['jquery'],
                 config: {
                     alias: {
@@ -35,7 +35,8 @@ var a = function() {
                         util: 'plugins/util'
                     },
                     paths: {
-                        count: '//js.soufunimg.com'
+                        count: '//js.soufunimg.com',
+                        webim: '//js.soufunimg.com/webim'
                     }
                 }
             }, function(cons) {
