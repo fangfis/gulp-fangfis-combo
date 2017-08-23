@@ -334,7 +334,12 @@ var filterIgnore = function(ignore, id, origId) {
                 m1 = eval(m1);
             } catch (err) {
                 m1 = '';
-                console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message + '\n                   file: ' + (modData ? modData.path : '')));
+                var filePath = modData ? modData.path : '';
+                var code = m;
+                code = m.replace(/[\s\r\n]*/g,'');
+                console.log(chalk.red(`${PLUGIN_NAME} error: ${err.message}`));
+                console.log(chalk.red(`                   file path: ${filePath}`));
+                console.log(chalk.red(`                   code snippet: ${code}`));
             }
             if (m1) {
                 if (typeof m1 === 'string') {
