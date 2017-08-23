@@ -261,7 +261,6 @@ function readDeps(options, parentDeps) {
                 filePath = item.path,
                 origId = item.origId,
                 contents, deps, isIgnore;
-
             isIgnore = options.ignore ?
                 filterIgnore(options.ignore, id, origId) :
                 false;
@@ -302,16 +301,16 @@ function readDeps(options, parentDeps) {
     });
 
     return Promise.all(promiseArr).then(function() {
-        if (childDeps.length) {
-            return readDeps(options, childDeps);
-        }
-    }, function(err) {
-        console.log(chalk.red(PLUGIN_NAME + ' Error: ' + err));
-    })
-    .catch(function(err) {
-        console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
-        console.log(err.stack);
-    });
+            if (childDeps.length) {
+                return readDeps(options, childDeps);
+            }
+        }, function(err) {
+            console.log(chalk.red(PLUGIN_NAME + ' Error: ' + err));
+        })
+        .catch(function(err) {
+            console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
+            console.log(err.stack);
+        });
 }
 
 /*
@@ -323,8 +322,9 @@ function readDeps(options, parentDeps) {
  * return { Array } 依赖模块列表
  */
 function pullDeps(options, reg, contents, modData, async) {
-    var deps = [],origId, depPathResult, origPath;
-    var base = options.base || path.resolve(modData.path, '..');
+    var deps = [],
+        origId, depPathResult, origPath;
+    // var base = options.base || path.resolve(modData.path, '..');
     reg.lastIndex = 0;
     // 删除代码注释
     contents = deleteCodeComments(contents);
@@ -345,14 +345,6 @@ function pullDeps(options, reg, contents, modData, async) {
                 origId = m1;
                 if (origId && origId.slice(0, 4) !== 'http' && origId.slice(0, 2) !== '//') {
                     depPathResult = modPathResolve(options, origId);
-                    origPath = getorigPath(depPathResult.path, base);
-                    if (async) {
-                        // 异步
-                        getorigIdbyBase(options, origPath, true);
-                    } else {
-                        // 同步
-                        getorigIdbyBase(options, origPath);
-                    }
                     deps.unshift({
                         id: depPathResult.id,
                         origId: depPathResult.path,
@@ -364,14 +356,6 @@ function pullDeps(options, reg, contents, modData, async) {
                     origId = m1[i];
                     if (origId && origId.slice(0, 4) !== 'http' && origId.slice(0, 2) !== '//') {
                         depPathResult = modPathResolve(options, origId);
-                        origPath = getorigPath(depPathResult.path, base);
-                        if (async) {
-                            // 异步
-                            getorigIdbyBase(options, origPath, true);
-                        } else {
-                            // 同步
-                            getorigIdbyBase(options, origPath);
-                        }
                         deps.unshift({
                             id: depPathResult.id,
                             origId: depPathResult.path,
@@ -622,7 +606,7 @@ function comboContent(options) {
  * param { String } 模块的绝对路径
  * param { promise }
  */
-function getorigIdbyBase(options, filePath, async) {
+function getorigIdbyBase(options, filePath, asyncFlag) {
     var fileSyncIdMap = options.fileSyncIdMap,
         fileMainIdMap = options.fileMainIdMap;
     var extName = path.extname(filePath);
@@ -637,7 +621,7 @@ function getorigIdbyBase(options, filePath, async) {
     }
     origId = diffPath.replace(extName, '');
     // 同步
-    if (!async) {
+    if (!asyncFlag) {
         if (!fileMainIdMap[filePath]) {
             fileSyncIdMap[filePath] = origId;
         }
@@ -748,10 +732,19 @@ function paseAsyncContent(options, cb) {
                 item.contents = contents;
                 item.asyncMod = true;
                 parseContent(options, contents, item.path, item.origId, item.asyncMod).then(function() {
-
                     // 记录加载id防止重复加载
                     var modArr = options.modArr;
                     var asyncTemMod = options.asyncTemMod;
+                    modArr.forEach(function(ite) {
+                        var base = options.base || path.resolve(ite.path, '..');
+                        var origPath = getorigPath(ite.path, base);
+                        getorigIdbyBase(options, origPath);
+                    });
+                    asyncTemMod.forEach(function(ite) {
+                        var base = options.base || path.resolve(ite.path, '..');
+                        var origPath = getorigPath(ite.path, base);
+                        getorigIdbyBase(options, origPath,true);
+                    });
                     var allArr = modArr.concat(asyncTemMod);
                     setIdMap(options, allArr);
                     var contents = comboContent(options);
@@ -829,6 +822,16 @@ function createStream(options, cb) {
                     // 记录加载id防止重复加载
                     var modArr = o.modArr;
                     var asyncTemMod = o.asyncTemMod;
+                    modArr.forEach(function(ite) {
+                        var base = o.base || path.resolve(ite.path, '..');
+                        var origPath = getorigPath(ite.path, base);
+                        getorigIdbyBase(o, origPath);
+                    });
+                    asyncTemMod.forEach(function(ite) {
+                        var base = o.base || path.resolve(ite.path, '..');
+                        var origPath = getorigPath(ite.path, base);
+                        getorigIdbyBase(o, origPath,true);
+                    });
                     var allArr = modArr.concat(asyncTemMod);
                     setIdMap(o, allArr);
                     var contents = comboContent(o);
