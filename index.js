@@ -853,6 +853,6 @@ function createStream(options, cb) {
             callback(null, file);
         }
     });
-};
+}
 
 module.exports = createStream;
