@@ -15,17 +15,24 @@ var writeFile = function(fileData) {
         });
         readable._read = function() {
             this.push(new Vinyl({
-                path: item.nameId + item.extName,
+                path: item.path,
+                base: 'dev',
                 contents: new Buffer(item.contents)
             }));
             this.push(null);
         };
-        readable.pipe(gulp.dest('build'));
+
+        readable.pipe(gulp.dest(function (file) {
+            return 'build';
+        }));
+        // gulp.src(item.path,{base:'dev'}).pipe(gulp.dest('build'));
     });
 };
 var a = function() {
     delFn(function() {
-        gulp.src('dev/js/detail/entry_sfbdetail_main.js')
+        gulp.src('/Users/tankunpeng/WebSite/gulp-fangfis-combo/test/dev/js/detail/entry_dsdetail_main.js', {
+                base: 'dev'
+            })
             .pipe(seajsCombo({
                 base: 'dev/js',
                 ignore: ['jquery'],
