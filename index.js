@@ -822,11 +822,13 @@ function createStream(options, cb) {
                     // 记录加载id防止重复加载
                     var modArr = o.modArr;
                     var asyncTemMod = o.asyncTemMod;
+                    // 分析同步模块id 防止已同步的模块被异步模块id替换
                     modArr.forEach(function(ite) {
                         var base = o.base || path.resolve(ite.path, '..');
                         var origPath = getorigPath(ite.path, base);
                         getorigIdbyBase(o, origPath);
                     });
+                     // 分析异步模块id 优先同步模块id调用,没有同步则修改成异步模块调用和声明
                     asyncTemMod.forEach(function(ite) {
                         var base = o.base || path.resolve(ite.path, '..');
                         var origPath = getorigPath(ite.path, base);
