@@ -32,7 +32,7 @@ const PLUGIN_NAME = 'gulp-fangfis-cmobo';
  * return { Boolean } 是否在忽略列表中
  */
 function filterIgnore(ignore, id, origId) {
-    return ignore.some(function(item) {
+    return ignore.some(function (item) {
         var arr;
 
         // 含路径的模块id只过滤精确匹配的结果
@@ -65,7 +65,7 @@ function evalConfig(configStr) {
     configStr = configStr.replace(/\{/, '');
     configArr = configStr.split(',');
 
-    configArr.forEach(function(item) {
+    configArr.forEach(function (item) {
         var index, key, value;
 
         index = item.indexOf(':');
@@ -92,16 +92,16 @@ function evalConfig(configStr) {
 function parseConfig(contents) {
     var config = {};
 
-    contents = contents.replace(rSeajsConfig, function($) {
-        $.replace(rAlias, function(_, $1) {
+    contents = contents.replace(rSeajsConfig, function ($) {
+        $.replace(rAlias, function (_, $1) {
             config.alias = evalConfig($1);
         });
 
-        $.replace(rPaths, function(_, $1) {
+        $.replace(rPaths, function (_, $1) {
             config.paths = evalConfig($1);
         });
 
-        $.replace(rVars, function(_, $1) {
+        $.replace(rVars, function (_, $1) {
             config.vars = evalConfig($1);
         });
 
@@ -133,7 +133,7 @@ function margeConfig(options, origId) {
     // 处理seajs.config => vars
     if (config.vars) {
         if (~origId.indexOf('{')) {
-            origId = origId.replace(rVar, function($, $1) {
+            origId = origId.replace(rVar, function ($, $1) {
                 if (config.vars[$1]) {
                     return config.vars[$1];
                 }
@@ -153,7 +153,7 @@ function margeConfig(options, origId) {
         arr = origId.split('/');
         modId = arr.splice(arr.length - 1, 1);
 
-        arr.forEach(function(_item, i) {
+        arr.forEach(function (_item, i) {
             if (config.paths[_item]) {
                 arr[i] = config.paths[_item];
             }
@@ -174,7 +174,7 @@ function margeConfig(options, origId) {
  * return { Array } 依赖模块的绝对路径列表
  */
 function mergePath(options, deps, base) {
-    return deps.map(function(item) {
+    return deps.map(function (item) {
         var origId = item.origId;
 
         // 防止多次merge
@@ -254,8 +254,8 @@ function deleteCodeComments(code) {
 function readDeps(options, parentDeps) {
     var childDeps = [];
 
-    var promiseArr = parentDeps.map(function(item) {
-        return new Promise(function(resolve, reject) {
+    var promiseArr = parentDeps.map(function (item) {
+        return new Promise(function (resolve, reject) {
             var id = item.id,
                 extName = item.extName,
                 filePath = item.path,
@@ -293,6 +293,14 @@ function readDeps(options, parentDeps) {
 
             deps = parseDeps(options, contents, item);
             if (deps.length) {
+                for (var i = deps.length - 1; i > -1; i--) {
+                    var depsid = deps[i].id;
+                    options.modArr.forEach(function (mod) {
+                        if (mod.id === depsid) {
+                            deps.splice(i, 1);
+                        }
+                    });
+                }
                 childDeps = childDeps.concat(deps);
             }
 
@@ -300,14 +308,22 @@ function readDeps(options, parentDeps) {
         });
     });
 
-    return Promise.all(promiseArr).then(function() {
+    return Promise.all(promiseArr).then(function () {
+            for (var i = childDeps.length - 1; i > -1; i--) {
+                var id = childDeps[i].id;
+                options.modArr.forEach(function (mod) {
+                    if (mod.id === id) {
+                        childDeps.splice(i, 1);
+                    }
+                });
+            }
             if (childDeps.length) {
                 return readDeps(options, childDeps);
             }
-        }, function(err) {
+        }, function (err) {
             console.log(chalk.red(PLUGIN_NAME + ' Error: ' + err));
         })
-        .catch(function(err) {
+        .catch(function (err) {
             console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
             console.log(err.stack);
         });
@@ -328,7 +344,7 @@ function pullDeps(options, reg, contents, modData, async) {
     reg.lastIndex = 0;
     // 删除代码注释
     contents = deleteCodeComments(contents);
-    contents.replace(reg, function(m, m1) {
+    contents.replace(reg, function (m, m1) {
         try {
             m1 = eval(m1);
         } catch (err) {
@@ -399,7 +415,7 @@ function parseDeps(options, contents, modData) {
 
         matches = contents.match(rSeajsUse);
 
-        matches.forEach(function(item) {
+        matches.forEach(function (item) {
             var _deps = [];
 
             if (~item.indexOf('fang.use')) {
@@ -448,14 +464,13 @@ function transform(options, modData, index) {
     // 标准模块
     if (!isSeajsUse) {
         // 修改依赖模块require内容
-        contents = contents.replace(rRequire, function(m, m1) {
+        contents = contents.replace(rRequire, function (m, m1) {
             var result = m,
                 depId, depOrigId, depPathResult, origPath, mainId;
             try {
                 m1 = eval(m1);
             } catch (err) {
                 m1 = '';
-                // console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
             }
             if (m1) {
                 if (typeof m1 === 'string') {
@@ -491,14 +506,13 @@ function transform(options, modData, index) {
         });
 
         // 修改异步相对路径模块require.async内容
-        contents = contents.replace(rRequireAsync, function(m, m1) {
+        contents = contents.replace(rRequireAsync, function (m, m1) {
             var result = m,
                 depId, depOrigId, depPathResult, origPath, mainId;
             try {
                 m1 = eval(m1);
             } catch (err) {
                 m1 = '';
-                // console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
             }
             if (m1) {
                 if (typeof m1 === 'string') {
@@ -532,7 +546,7 @@ function transform(options, modData, index) {
         });
 
         // 为匿名模块添加模块名，同时将依赖列表添加到头部
-        contents = contents.replace(rDefine, function($, $1) {
+        contents = contents.replace(rDefine, function ($, $1) {
             var origPath = getorigPath(filePath, base);
             var id = fileIdMap[modData.id][origPath];
             if (index === 0) id = modData.origId;
@@ -542,11 +556,11 @@ function transform(options, modData, index) {
                 `define('${id}',[],`;
         });
     } else {
-        contents = contents.replace(rSeajsUse, function($) {
+        contents = contents.replace(rSeajsUse, function ($) {
             var result = $;
 
             if (~$.indexOf('fang.use(')) {
-                result = $.replace(rDeps, function($, _, $2) {
+                result = $.replace(rDeps, function ($, _, $2) {
                     var tmpResult = $,
                         depPathResult, depId;
 
@@ -577,7 +591,7 @@ function comboContent(options) {
     var contents = '',
         fileMap = options.fileMap,
         newModArr = [];
-    options.modArr.forEach(function(item) {
+    options.modArr.forEach(function (item) {
         var base = options.base || path.resolve(item.path, '..');
         var origPath = getorigPath(item.path, base);
         if (!fileMap[origPath]) {
@@ -586,9 +600,8 @@ function comboContent(options) {
         }
     });
 
-
     if (newModArr.length > 0) console.log(chalk.cyan(PLUGIN_NAME + ': '), 'Module ' + chalk.yellow(newModArr[0].id + ' starting combo'));
-    newModArr.forEach(function(item, index) {
+    newModArr.forEach(function (item, index) {
         var newContents = transform(options, item, index);
         if (newContents) {
             var pathStr = path.extname(item.path) ? item.path : item.path + '.js';
@@ -639,7 +652,7 @@ function getorigIdbyBase(options, filePath, asyncFlag) {
  * param { promise }
  */
 function parseContent(options, contents, filePath, origId, asyncMod) {
-    return new Promise(function(resolve) {
+    return new Promise(function (resolve) {
         // 读取主入口路径信息
         // eg: {id: "a", path: "/Users/tankunpeng/WebSite/gulp-seajs-combo/test/src/a.js", extName: ".js"}
         var pathResult = modPathResolve(options, filePath);
@@ -668,7 +681,7 @@ function parseContent(options, contents, filePath, origId, asyncMod) {
 function setIdMap(options, allArr) {
     var fileIdMap = options.fileIdMap;
     if (allArr.length) {
-        allArr.forEach(function(item) {
+        allArr.forEach(function (item) {
             var idJson = fileIdMap[item.id];
             var base = options.base || path.resolve(item.path, '..');
             var origPath = getorigPath(item.path, base);
@@ -707,7 +720,7 @@ function paseAsyncContent(options, cb) {
         cb && cb(options.asyncModArr);
         return;
     }
-    var preAsyncContent = function() {
+    var preAsyncContent = function () {
         var item = arr[num];
         options.modArr = [];
         var extName = path.extname(item.path);
@@ -731,19 +744,19 @@ function paseAsyncContent(options, cb) {
                 contents = fs.readFileSync(item.path, options.encoding);
                 item.contents = contents;
                 item.asyncMod = true;
-                parseContent(options, contents, item.path, item.origId, item.asyncMod).then(function() {
+                parseContent(options, contents, item.path, item.origId, item.asyncMod).then(function () {
                     // 记录加载id防止重复加载
                     var modArr = options.modArr;
                     var asyncTemMod = options.asyncTemMod;
-                    modArr.forEach(function(ite) {
+                    modArr.forEach(function (ite) {
                         var base = options.base || path.resolve(ite.path, '..');
                         var origPath = getorigPath(ite.path, base);
                         getorigIdbyBase(options, origPath);
                     });
-                    asyncTemMod.forEach(function(ite) {
+                    asyncTemMod.forEach(function (ite) {
                         var base = options.base || path.resolve(ite.path, '..');
                         var origPath = getorigPath(ite.path, base);
-                        getorigIdbyBase(options, origPath,true);
+                        getorigIdbyBase(options, origPath, true);
                     });
                     var allArr = modArr.concat(asyncTemMod);
                     setIdMap(options, allArr);
@@ -762,7 +775,7 @@ function paseAsyncContent(options, cb) {
                     }
                     preAsyncContent();
 
-                }).catch(function(err) {
+                }).catch(function (err) {
                     console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
                     console.log(err.stack);
                 });
@@ -815,24 +828,24 @@ function createStream(options, cb) {
         }
     }
 
-    return through.obj(function(file, enc, callback) {
+    return through.obj(function (file, enc, callback) {
         if (file.isBuffer()) {
             parseContent(o, file.contents.toString(), file.path)
-                .then(function() {
+                .then(function () {
                     // 记录加载id防止重复加载
                     var modArr = o.modArr;
                     var asyncTemMod = o.asyncTemMod;
                     // 分析同步模块id 防止已同步的模块被异步模块id替换
-                    modArr.forEach(function(ite) {
+                    modArr.forEach(function (ite) {
                         var base = o.base || path.resolve(ite.path, '..');
                         var origPath = getorigPath(ite.path, base);
                         getorigIdbyBase(o, origPath);
                     });
-                     // 分析异步模块id 优先同步模块id调用,没有同步则修改成异步模块调用和声明
-                    asyncTemMod.forEach(function(ite) {
+                    // 分析异步模块id 优先同步模块id调用,没有同步则修改成异步模块调用和声明
+                    asyncTemMod.forEach(function (ite) {
                         var base = o.base || path.resolve(ite.path, '..');
                         var origPath = getorigPath(ite.path, base);
-                        getorigIdbyBase(o, origPath,true);
+                        getorigIdbyBase(o, origPath, true);
                     });
                     var allArr = modArr.concat(asyncTemMod);
                     setIdMap(o, allArr);
@@ -844,7 +857,7 @@ function createStream(options, cb) {
                     }
                     callback(null, file);
                 })
-                .catch(function(err) {
+                .catch(function (err) {
                     console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
                     console.log(err.stack);
                     callback(null, file);

@@ -1,40 +1,39 @@
-var gulp = require('gulp'),
-    del = require('del'),
-    seajsCombo = require('../index');
+var gulp = require('gulp');
+var del = require('del');
+var seajsCombo = require('../index');
 var stream = require('stream');
-var delFn = function(cb) {
-    return del('./build').then(function() {
+var delFn = function (cb) {
+    return del('./build').then(function () {
         cb && cb();
     });
 };
 var Vinyl = require('vinyl');
-var writeFile = function(fileData) {
-    fileData.forEach(function(item) {
+var writeFile = function (fileData) {
+    fileData.forEach(function (item) {
         var readable = stream.Readable({
             objectMode: true
         });
-        readable._read = function() {
+        readable._read = function () {
             this.push(new Vinyl({
                 path: item.path,
-                base: 'dev',
+                base: 'map/js',
                 contents: new Buffer(item.contents)
             }));
             this.push(null);
         };
 
-        readable.pipe(gulp.dest(function (file) {
-            return 'build';
-        }));
+        readable.pipe(gulp.dest('build'));
         // gulp.src(item.path,{base:'dev'}).pipe(gulp.dest('build'));
     });
 };
-var a = function() {
-    delFn(function() {
-        gulp.src('/Users/tankunpeng/WebSite/gulp-fangfis-combo/test/dev/js/detail/entry_dsdetail_main.js', {
-                base: 'dev'
+var a = function () {
+    delFn(function () {
+        gulp
+            .src('/Users/tankunpeng/WebSite/gulp-fangfis-combo/test/map/js/modules/xf/main.js', {
+                base: 'map/js'
             })
             .pipe(seajsCombo({
-                base: 'dev/js',
+                base: 'map/js',
                 ignore: ['jquery'],
                 config: {
                     alias: {
@@ -46,7 +45,7 @@ var a = function() {
                         webim: '//js.soufunimg.com/webim'
                     }
                 }
-            }, function(cons) {
+            }, function (cons) {
                 // console.log(cons);
                 writeFile(cons);
             }))

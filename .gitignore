@@ -8,6 +8,7 @@ yarn-error.log*
 test/build/*
 test/dev
 test/jslib
+test/map
 # Runtime data
 pids
 *.pid
