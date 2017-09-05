@@ -29,7 +29,7 @@ var writeFile = function (fileData) {
 var a = function () {
     delFn(function () {
         gulp
-            .src('/Users/tankunpeng/WebSite/gulp-fangfis-combo/test/map/js/modules/esf/main.js', {
+            .src(['/Users/tankunpeng/WebSite/gulp-fangfis-combo/test/map/js/modules/xf/main.js','/Users/tankunpeng/WebSite/gulp-fangfis-combo/test/map/js/modules/esf/main.js'], {
                 base: 'map/js'
             })
             .pipe(seajsCombo({

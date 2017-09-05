@@ -218,7 +218,6 @@ function modPathResolve(options, filePath) {
  * 解析基于基本路径的模块真實路徑
  * param { string } 路徑
  * param { string } 基本路徑
- * param { promise }
  */
 function getorigPath(filePath, base) {
     var extName = path.extname(filePath);
@@ -230,7 +229,6 @@ function getorigPath(filePath, base) {
 /*
  * 删除代码注释
  * param { string } 代码字符串
- * param { promise }
  */
 function deleteCodeComments(code) {
     // 另一种思路更简便的办法
@@ -248,83 +246,73 @@ function deleteCodeComments(code) {
  * 解析依赖模块列表，如果有依赖模块则开始解析依赖模块
  * param { Object } 配置参数
  * param { Array } 依赖模块
- * param { promise }
  */
 function readDeps(options, parentDeps) {
     var childDeps = [];
+    parentDeps.map(function (item) {
+        var id = item.id,
+            extName = item.extName,
+            filePath = item.path,
+            origId = item.origId,
+            contents, deps, isIgnore;
+        isIgnore = options.ignore ?
+            filterIgnore(options.ignore, id, origId) :
+            false;
 
-    var promiseArr = parentDeps.map(function (item) {
-        return new Promise(function (resolve, reject) {
-            var id = item.id,
-                extName = item.extName,
-                filePath = item.path,
-                origId = item.origId,
-                contents, deps, isIgnore;
-            isIgnore = options.ignore ?
-                filterIgnore(options.ignore, id, origId) :
-                false;
+        // 检测该模块是否在忽略列表中
+        if (isIgnore) {
+            options.modArr.push({
+                id: id,
+                path: filePath,
+                contents: '',
+                extName: extName,
+                origId: origId
+            });
+            // resolve();
+            return;
+        }
 
-            // 检测该模块是否在忽略列表中
-            if (isIgnore) {
-                options.modArr.push({
-                    id: id,
-                    path: filePath,
-                    contents: '',
-                    extName: extName,
-                    origId: origId
-                });
+        // 处理普通的js模块
+        if (!extName && filePath.slice(-3) !== '.js') {
+            filePath += '.js';
+        }
 
-                resolve();
-                return;
-            }
+        try {
+            contents = fs.readFileSync(filePath, options.encoding);
+        } catch (_) {
+            console.log(chalk.red(PLUGIN_NAME + ' error: File [' + filePath + '] not found.'));
+            return;
+        }
 
-            // 处理普通的js模块
-            if (!extName && filePath.slice(-3) !== '.js') {
-                filePath += '.js';
-            }
-
-            try {
-                contents = fs.readFileSync(filePath, options.encoding);
-            } catch (_) {
-                reject('File [' + filePath + '] not found.');
-                return;
-            }
-
-            deps = parseDeps(options, contents, item);
-            if (deps.length) {
-                for (var i = deps.length - 1; i > -1; i--) {
-                    var depsid = deps[i].id;
-                    options.modArr.forEach(function (mod) {
-                        if (mod.id === depsid) {
-                            deps.splice(i, 1);
-                        }
-                    });
-                }
-                childDeps = childDeps.concat(deps);
-            }
-
-            resolve();
-        });
-    });
-
-    return Promise.all(promiseArr)
-        .then(function () {
-            for (var i = childDeps.length - 1; i > -1; i--) {
-                var id = childDeps[i].id;
+        deps = parseDeps(options, contents, item);
+        if (deps.length) {
+            for (var i = deps.length - 1; i > -1; i--) {
+                var depsid = deps[i].id;
                 options.modArr.forEach(function (mod) {
-                    if (mod.id === id) {
-                        childDeps.splice(i, 1);
+                    if (mod.id === depsid) {
+                        deps.splice(i, 1);
                     }
                 });
             }
-            if (childDeps.length) {
-                return readDeps(options, childDeps);
-            }
-        })
-        .catch(function (err) {
-            console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
-            console.log(err.stack);
-        });
+            childDeps = childDeps.concat(deps);
+        }
+    });
+    try {
+        for (var i = childDeps.length - 1; i > -1; i--) {
+            var id = childDeps[i].id;
+            options.modArr.forEach(function (mod) {
+                if (mod.id === id) {
+                    childDeps.splice(i, 1);
+                }
+            });
+        }
+        if (childDeps.length) {
+            return readDeps(options, childDeps);
+        }
+    } catch (err) {
+        console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
+        console.log(err.stack);
+    }
 }
 
 /*
@@ -705,7 +693,7 @@ function comboContent(options) {
         }
     });
 
-    if (newModArr.length > 0) console.log(chalk.cyan(PLUGIN_NAME + ': '), 'Module ' + chalk.yellow(newModArr[0].id + ' starting combo'));
+    if (newModArr.length > 0) console.log(chalk.cyan(PLUGIN_NAME + ': '), 'Module ' + chalk.yellow(newModArr[0].origId + ' starting combo'));
     newModArr.forEach(function (item, index) {
         var newContents = transform(options, item, index);
         if (newContents) {
@@ -722,7 +710,6 @@ function comboContent(options) {
  * 解析模块基于基本路径的真实id
  * param { Object } 选项
  * param { String } 模块的绝对路径
- * param { promise }
  */
 function getorigIdbyBase(options, filePath, asyncFlag) {
     var fileSyncIdMap = options.fileSyncIdMap,
@@ -754,34 +741,29 @@ function getorigIdbyBase(options, filePath, asyncFlag) {
  * param { Object } 数据存储对象
  * param { String } 文件内容
  * param { String } 模块的绝对路径
- * param { promise }
  */
-function parseContent(options, contents, filePath, origId, asyncMod) {
-    return new Promise(function (resolve) {
-        // 读取主入口路径信息
-        // eg: {id: "a", path: "/Users/tankunpeng/WebSite/gulp-seajs-combo/test/src/a.js", extName: ".js"}
-        var pathResult = modPathResolve(options, filePath);
-        // 设置入口模块基于base的真实id
-        pathResult.origId = getorigIdbyBase(options, filePath, true);
-        // if (origId) pathResult.origId = origId;
-        if (asyncMod) pathResult.asyncMod = asyncMod;
-        // 读取主入口依赖模块路径信息
-        // [{id: "b", extName: "", path: "/Users/tankunpeng/WebSite/gulp-seajs-combo/test/src/b", origId: "./b"},...]
-        var deps = parseDeps(options, contents, pathResult);
-
-        if (deps.length) {
-            resolve(readDeps(options, deps));
-        } else {
-            resolve();
-        }
-    });
+function parseContent(options, contents, filePath, asyncMod, callback) {
+    // 读取主入口路径信息
+    // eg: {id: "a", path: "/Users/tankunpeng/WebSite/gulp-seajs-combo/test/src/a.js", extName: ".js"}
+    var pathResult = modPathResolve(options, filePath);
+    // 设置入口模块基于base的真实id
+    pathResult.origId = getorigIdbyBase(options, filePath, true);
+    if (asyncMod) pathResult.asyncMod = asyncMod;
+    // 读取主入口依赖模块路径信息
+    // [{id: "b", extName: "", path: "/Users/tankunpeng/WebSite/gulp-seajs-combo/test/src/b", origId: "./b"},...]
+    var deps = parseDeps(options, contents, pathResult);
+    if (deps.length) {
+        readDeps(options, deps);
+        callback && callback();
+    } else {
+        callback && callback();
+    }
 }
 
 /*
  * 设置idmap
  * param { Object } 选项对象
  * param { Object } 对象数组
- * param { promise }
  */
 function setIdMap(options, allArr) {
     var fileIdMap = options.fileIdMap;
@@ -814,7 +796,6 @@ function setIdMap(options, allArr) {
  * 解析异步模块的内容,并作为入口解析依赖
  * param { Object } 选项
  * param { function } 回调
- * param { promise }
  */
 function paseAsyncContent(options, cb) {
     var arr = options.asyncTemMod,
@@ -859,7 +840,7 @@ function paseAsyncContent(options, cb) {
                 contents = fs.readFileSync(item.path, options.encoding);
                 item.contents = contents;
                 item.asyncMod = true;
-                parseContent(options, contents, item.path, item.origId, item.asyncMod).then(function () {
+                parseContent(options, contents, item.path, item.asyncMod, function () {
                     // 记录加载id防止重复加载
                     var modArr = options.modArr;
                     var asyncTemMod = options.asyncTemMod;
@@ -889,10 +870,6 @@ function paseAsyncContent(options, cb) {
                         return;
                     }
                     preAsyncContent();
-
-                }).catch(function (err) {
-                    console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
-                    console.log(err.stack);
                 });
             } catch (_) {
                 console.log(chalk.red(PLUGIN_NAME + ' error: File [' + item.path + '] not found.'));
@@ -907,75 +884,68 @@ function createStream(options, cb) {
     if (typeof options === 'function') {
         cb = options;
     }
-    var o = {
-        modArr: [],
-        asyncModArr: [],
-        asyncTemMod: [],
-        fileIdMap: {},
-        // 标识异步模块基于base路径的真实id
-        fileMainIdMap: {},
-        // 标识同步依赖模块基于base路径的真实id
-        fileSyncIdMap: {},
-        // 标识文件是否已被combo
-        fileMap: {},
-        config: options.config || {},
-        idnum: 0,
-        contents: '',
-        encoding: 'UTF-8',
-        verbose: !!~process.argv.indexOf('--verbose')
-    };
-
-    if (options) {
-        if (options.ignore) {
-            o.ignore = options.ignore;
-        }
-
-        if (options.map) {
-            o.map = options.map;
-        }
-
-        if (options.encoding) {
-            o.encoding = options.encoding;
-        }
-        if (options.base) {
-            o.base = options.base;
-        }
-    }
-
     return through.obj(function (file, enc, callback) {
-        if (file.isBuffer()) {
-            parseContent(o, file.contents.toString(), file.path)
-                .then(function () {
-                    // 记录加载id防止重复加载
-                    var modArr = o.modArr;
-                    var asyncTemMod = o.asyncTemMod;
-                    // 分析同步模块id 防止已同步的模块被异步模块id替换
-                    modArr.forEach(function (ite) {
-                        var base = o.base || path.resolve(ite.path, '..');
-                        var origPath = getorigPath(ite.path, base);
-                        getorigIdbyBase(o, origPath);
-                    });
-                    // 分析异步模块id 优先同步模块id调用,没有同步则修改成异步模块调用和声明
-                    asyncTemMod.forEach(function (ite) {
-                        var base = o.base || path.resolve(ite.path, '..');
-                        var origPath = getorigPath(ite.path, base);
-                        getorigIdbyBase(o, origPath, true);
-                    });
-                    var allArr = modArr.concat(asyncTemMod);
-                    setIdMap(o, allArr);
-                    var contents = comboContent(o);
+        var o = {
+            modArr: [],
+            asyncModArr: [],
+            asyncTemMod: [],
+            fileIdMap: {},
+            // 标识异步模块基于base路径的真实id
+            fileMainIdMap: {},
+            // 标识同步依赖模块基于base路径的真实id
+            fileSyncIdMap: {},
+            // 标识文件是否已被combo
+            fileMap: {},
+            config: options.config || {},
+            idnum: 0,
+            contents: '',
+            encoding: 'UTF-8',
+            verbose: !!~process.argv.indexOf('--verbose')
+        };
 
-                    file.contents = contents;
-                    if (o.asyncTemMod.length) {
-                        paseAsyncContent(o, cb);
-                    }
-                    callback(null, file);
-                })
-                .catch(function (err) {
-                    console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
-                    console.log(err.stack);
-                    callback(null, file);
+        if (options) {
+            if (options.ignore) {
+                o.ignore = options.ignore;
+            }
+
+            if (options.map) {
+                o.map = options.map;
+            }
+
+            if (options.encoding) {
+                o.encoding = options.encoding;
+            }
+            if (options.base) {
+                o.base = options.base;
+            }
+        }
+        if (file.isBuffer()) {
+            parseContent(o, file.contents.toString(), file.path, false, function () {
+                // 记录加载id防止重复加载
+                var modArr = o.modArr;
+                var asyncTemMod = o.asyncTemMod;
+                // 分析同步模块id 防止已同步的模块被异步模块id替换
+                modArr.forEach(function (ite) {
+                    var base = o.base || path.resolve(ite.path, '..');
+                    var origPath = getorigPath(ite.path, base);
+                    getorigIdbyBase(o, origPath);
                 });
+                // 分析异步模块id 优先同步模块id调用,没有同步则修改成异步模块调用和声明
+                asyncTemMod.forEach(function (ite) {
+                    var base = o.base || path.resolve(ite.path, '..');
+                    var origPath = getorigPath(ite.path, base);
+                    getorigIdbyBase(o, origPath, true);
+                });
+                var allArr = modArr.concat(asyncTemMod);
+                setIdMap(o, allArr);
+                var contents = comboContent(o);
+
+                file.contents = contents;
+                if (o.asyncTemMod.length) {
+                    paseAsyncContent(o, cb);
+                }
+                callback(null, file);
+            });
         } else {
             callback(null, file);
         }
