@@ -241,8 +241,7 @@ function deleteCodeComments(code) {
     var regTmp2 = /@:@\/@\/@/g;
     code = code.replace(regTmp1, tmp2);
     code = code.replace(rComments, '');
-    result = code.replace(regTmp2, tmp1);
-    return result;
+    return code.replace(regTmp2, tmp1);
 }
 
 /*
@@ -308,7 +307,8 @@ function readDeps(options, parentDeps) {
         });
     });
 
-    return Promise.all(promiseArr).then(function () {
+    return Promise.all(promiseArr)
+        .then(function () {
             for (var i = childDeps.length - 1; i > -1; i--) {
                 var id = childDeps[i].id;
                 options.modArr.forEach(function (mod) {
@@ -320,8 +320,6 @@ function readDeps(options, parentDeps) {
             if (childDeps.length) {
                 return readDeps(options, childDeps);
             }
-        }, function (err) {
-            console.log(chalk.red(PLUGIN_NAME + ' Error: ' + err));
         })
         .catch(function (err) {
             console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
@@ -337,9 +335,9 @@ function readDeps(options, parentDeps) {
  * param { Object } 标识异步 异步作为下次处理主入口模块 需要标识id
  * return { Array } 依赖模块列表
  */
-function pullDeps(options, reg, contents, modData, async) {
+function pullDeps(options, reg, contents, modData) {
     var deps = [],
-        origId, depPathResult, origPath;
+        origId, depPathResult;
     // var base = options.base || path.resolve(modData.path, '..');
     reg.lastIndex = 0;
     // 删除代码注释
@@ -386,6 +384,56 @@ function pullDeps(options, reg, contents, modData, async) {
 }
 
 /*
+ * 从define头部提取依赖模块
+ * param { Object } 配置参数
+ * param { RegExp } 提取正则
+ * param { Object } 文件内容
+ * param { Object } 标识异步 异步作为下次处理主入口模块 需要标识id
+ * return { Array } 依赖模块列表
+ */
+function pullDefineDeps(options, reg, contents, modData) {
+    var deps = [],
+        origId, depPathResult;
+    // var base = options.base || path.resolve(modData.path, '..');
+    reg.lastIndex = 0;
+    // 删除代码注释
+    contents = deleteCodeComments(contents);
+    contents.replace(reg, function (m, m1, m2) {
+        if (m2) {
+            var m2len = m2.length;
+            if (m2.charAt(m2len - 1) === ',') m2 = m2.slice(0, m2len - 1);
+        }
+        try {
+            m2 = eval(m2);
+        } catch (err) {
+            m2 = '';
+            var filePath = modData ? modData.path : '';
+            var code = m;
+            code = m.replace(/[\r\n]*/g, '');
+            console.log(chalk.yellow(`${PLUGIN_NAME} warning:`), chalk.gray(err.message));
+            console.log(chalk.yellow('                   file path:'), chalk.gray(filePath));
+            console.log(chalk.yellow('                   code snippet:'), chalk.gray(code));
+        }
+        if (m2) {
+            if (Array.isArray(m2)) {
+                for (var i = 0; i < m2.length; i++) {
+                    origId = m2[i];
+                    if (origId && origId.slice(0, 4) !== 'http' && origId.slice(0, 2) !== '//') {
+                        depPathResult = modPathResolve(options, origId);
+                        deps.unshift({
+                            id: depPathResult.id,
+                            origId: depPathResult.path,
+                            extName: depPathResult.extName
+                        });
+                    }
+                }
+            }
+        }
+    });
+    return deps;
+}
+
+/*
  * 解析依赖模块
  * param { Object } 配置参数
  * param { String } 文件内容
@@ -396,13 +444,15 @@ function parseDeps(options, contents, modData) {
     var isSeajsUse = !!~contents.indexOf('fang.use('),
         id = modData.id,
         deps = [],
+        defineDeps = [],
         asyncDeps = [],
         configResult, name, base, matches;
 
     // 标准模块
     if (!isSeajsUse) {
+        defineDeps = pullDefineDeps(options, rDefine, contents, modData);
         deps = pullDeps(options, rRequire, contents, modData);
-        asyncDeps = pullDeps(options, rRequireAsync, contents, modData, true);
+        asyncDeps = pullDeps(options, rRequireAsync, contents, modData);
     }
     // 解析seajs.use
     else {
@@ -424,7 +474,20 @@ function parseDeps(options, contents, modData) {
             }
         });
     }
-
+    // 合并依赖数组
+    for (var i = 0, len = defineDeps.length; i < len; i++) {
+        var theDeps = defineDeps[i];
+        var hasvalue = false;
+        for (var j = 0, lenj = deps.length; j < lenj; j++) {
+            if (theDeps.origId === deps[j].origId) {
+                hasvalue = true;
+                break;
+            }
+        }
+        if (!hasvalue) {
+            deps.unshift(theDeps);
+        }
+    }
     base = options.base || path.resolve(modData.path, '..');
     deps = mergePath(options, deps, base);
     asyncDeps = mergePath(options, asyncDeps, base);
@@ -438,6 +501,7 @@ function parseDeps(options, contents, modData) {
         extName: modData.extName,
         origId: modData.origId || id
     });
+
     options.asyncTemMod.push(...asyncDeps);
     return deps;
 }
@@ -459,126 +523,167 @@ function transform(options, modData, index) {
         fileSyncIdMap = options.fileSyncIdMap,
         deps = [];
     var base = options.base || path.resolve(modData.path, '..');
-    // 删除代码注释
-    contents = deleteCodeComments(contents);
+    var matchMod;
+    // contents = deleteCodeComments(contents);
     // 标准模块
     if (!isSeajsUse) {
         // 修改依赖模块require内容
-        contents = contents.replace(rRequire, function (m, m1) {
-            var result = m,
-                depId, depOrigId, depPathResult, origPath, mainId;
-            try {
-                m1 = eval(m1);
-            } catch (err) {
-                m1 = '';
-            }
-            if (m1) {
-                if (typeof m1 === 'string') {
-                    m1 = margeConfig(options, m1);
-                    if (m1 && m1.slice(0, 4) !== 'http' && origId.slice(0, 2) !== '//') {
-                        depPathResult = modPathResolve(options, m1);
-                        depOrigId = depPathResult.path;
-                        origPath = getorigPath(depPathResult.path, base);
-                        depId = fileIdMap[depPathResult.id][origPath] || depPathResult.id;
-                        mainId = fileMainIdMap[origPath];
-                        if (mainId && !fileSyncIdMap[origPath]) depId = mainId;
-                        deps.push(depId);
-                        result = result.replace(depOrigId, depId);
-                    }
-                } else if (Array.isArray(m1)) {
-                    for (var i = 0; i < m1.length; i++) {
-                        var tmpId = m1[i];
-                        tmpId = margeConfig(options, tmpId);
-                        if (tmpId && tmpId.slice(0, 4) !== 'http' && tmpId.slice(0, 2) !== '//') {
-                            depPathResult = modPathResolve(options, m1[i]);
+        matchMod = contents.match(rDefine);
+        // 写过依赖的不再分析函数体依赖关系
+        if (contents) {
+            contents = contents.replace(rRequire, function (m, m1) {
+                var result = m,
+                    depId, depOrigId, depPathResult, origPath, mainId;
+                try {
+                    m1 = eval(m1);
+                } catch (err) {
+                    m1 = '';
+                }
+                if (m1) {
+                    if (typeof m1 === 'string') {
+                        m1 = margeConfig(options, m1);
+                        if (m1 && m1.slice(0, 4) !== 'http' && origId.slice(0, 2) !== '//') {
+                            depPathResult = modPathResolve(options, m1);
                             depOrigId = depPathResult.path;
                             origPath = getorigPath(depPathResult.path, base);
-                            depId = fileIdMap[depPathResult.id][origPath] || depPathResult.id;
+                            depId = fileIdMap[depPathResult.id] && fileIdMap[depPathResult.id][origPath] ? fileIdMap[depPathResult.id][origPath] : depPathResult.id;
                             mainId = fileMainIdMap[origPath];
                             if (mainId && !fileSyncIdMap[origPath]) depId = mainId;
-                            deps.push(depId);
+                            if (deps.indexOf(depId) === -1) deps.push(depId);
                             result = result.replace(depOrigId, depId);
+                        }
+                    } else if (Array.isArray(m1)) {
+                        for (var i = 0; i < m1.length; i++) {
+                            var tmpId = m1[i];
+                            tmpId = margeConfig(options, tmpId);
+                            if (tmpId && tmpId.slice(0, 4) !== 'http' && tmpId.slice(0, 2) !== '//') {
+                                depPathResult = modPathResolve(options, m1[i]);
+                                depOrigId = depPathResult.path;
+                                origPath = getorigPath(depPathResult.path, base);
+                                depId = fileIdMap[depPathResult.id] && fileIdMap[depPathResult.id][origPath] ? fileIdMap[depPathResult.id][origPath] : depPathResult.id;
+                                mainId = fileMainIdMap[origPath];
+                                if (mainId && !fileSyncIdMap[origPath]) depId = mainId;
+                                if (deps.indexOf(depId) === -1) deps.push(depId);
+                                result = result.replace(depOrigId, depId);
+                            }
                         }
                     }
                 }
-            }
-            return result;
-        });
-
-        // 修改异步相对路径模块require.async内容
-        contents = contents.replace(rRequireAsync, function (m, m1) {
-            var result = m,
-                depId, depOrigId, depPathResult, origPath, mainId;
-            try {
-                m1 = eval(m1);
-            } catch (err) {
-                m1 = '';
-            }
-            if (m1) {
-                if (typeof m1 === 'string') {
-                    m1 = margeConfig(options, m1);
-                    if (m1 && m1.slice(0, 4) !== 'http' && m1.slice(0, 2) !== '//') {
-                        depPathResult = modPathResolve(options, m1);
-                        depOrigId = depPathResult.path;
-                        origPath = getorigPath(depPathResult.path, base);
-                        depId = fileIdMap[depPathResult.id][origPath] || depPathResult.id;
-                        mainId = fileMainIdMap[origPath];
-                        if (mainId && !fileSyncIdMap[origPath]) depId = mainId;
-                        result = result.replace(depOrigId, depId);
-                    }
-                } else if (Array.isArray(m1)) {
-                    for (var i = 0; i < m1.length; i++) {
-                        var tmpId = m1[i];
-                        tmpId = margeConfig(options, tmpId);
-                        if (tmpId && tmpId.slice(0, 4) !== 'http' && tmpId.slice(0, 2) !== '//') {
-                            depPathResult = modPathResolve(options, m1[i]);
+                return result;
+            });
+        }
+        if (contents) {
+            // 修改异步相对路径模块require.async内容
+            contents = contents.replace(rRequireAsync, function (m, m1) {
+                var result = m,
+                    depId, depOrigId, depPathResult, origPath, mainId;
+                try {
+                    m1 = eval(m1);
+                } catch (err) {
+                    m1 = '';
+                }
+                if (m1) {
+                    if (typeof m1 === 'string') {
+                        m1 = margeConfig(options, m1);
+                        if (m1 && m1.slice(0, 4) !== 'http' && m1.slice(0, 2) !== '//') {
+                            depPathResult = modPathResolve(options, m1);
                             depOrigId = depPathResult.path;
                             origPath = getorigPath(depPathResult.path, base);
-                            depId = fileIdMap[depPathResult.id][origPath] || depPathResult.id;
+                            depId = fileIdMap[depPathResult.id] && fileIdMap[depPathResult.id][origPath] ? fileIdMap[depPathResult.id][origPath] : depPathResult.id;
                             mainId = fileMainIdMap[origPath];
                             if (mainId && !fileSyncIdMap[origPath]) depId = mainId;
                             result = result.replace(depOrigId, depId);
                         }
+                    } else if (Array.isArray(m1)) {
+                        for (var i = 0; i < m1.length; i++) {
+                            var tmpId = m1[i];
+                            tmpId = margeConfig(options, tmpId);
+                            if (tmpId && tmpId.slice(0, 4) !== 'http' && tmpId.slice(0, 2) !== '//') {
+                                depPathResult = modPathResolve(options, m1[i]);
+                                depOrigId = depPathResult.path;
+                                origPath = getorigPath(depPathResult.path, base);
+                                depId = fileIdMap[depPathResult.id] && fileIdMap[depPathResult.id][origPath] ? fileIdMap[depPathResult.id][origPath] : depPathResult.id;
+                                mainId = fileMainIdMap[origPath];
+                                if (mainId && !fileSyncIdMap[origPath]) depId = mainId;
+                                result = result.replace(depOrigId, depId);
+                            }
+                        }
                     }
                 }
-            }
-            return result;
-        });
+                return result;
+            });
 
-        // 为匿名模块添加模块名，同时将依赖列表添加到头部
-        contents = contents.replace(rDefine, function ($, $1) {
-            var origPath = getorigPath(filePath, base);
-            var id = fileIdMap[modData.id][origPath];
-            if (index === 0) id = modData.origId;
-            $ = $.replace($1, '');
-            return deps.length ?
-                `define('${id}',['${deps.join('\',\'')}'],` :
-                `define('${id}',[],`;
-        });
+            // 为非模块代码添加define标识
+            if (!matchMod) {
+                var origPath = getorigPath(filePath, base);
+                var id = fileIdMap[modData.id][origPath];
+                contents += `define('${id}',[],function () {});\n`;
+            } else {
+                // 为匿名模块添加模块名，同时将依赖列表添加到头部
+                contents = contents.replace(rDefine, function ($, $1, $2) {
+                    var origPath = getorigPath(filePath, base);
+                    var id = fileIdMap[modData.id][origPath];
+                    if (index === 0) id = modData.origId;
+                    var modArr = null;
+                    var modId = [];
+                    var result = '';
+                    if ($2) {
+                        var $2len = $2.length;
+                        if ($2.charAt($2len - 1) === ',') $2 = $2.slice(0, $2len - 1);
+                        try {
+                            modArr = eval($2);
+                        } catch (err) {
+                            console.log(err);
+                        }
+                    }
+                    if (modArr && modArr.length) {
+                        for (var i = 0; i < modArr.length; i++) {
+                            var tmpId = modArr[i];
+                            tmpId = margeConfig(options, tmpId);
+                            if (tmpId && tmpId.slice(0, 4) !== 'http' && tmpId.slice(0, 2) !== '//') {
+                                var depPathResult = modPathResolve(options, tmpId);
+                                origPath = getorigPath(depPathResult.path, base);
+                                var depId = fileIdMap[depPathResult.id] && fileIdMap[depPathResult.id][origPath] ? fileIdMap[depPathResult.id][origPath] : depPathResult.id;
+                                var mainId = fileMainIdMap[origPath];
+                                if (mainId && !fileSyncIdMap[origPath]) depId = mainId;
+                                if (modId.indexOf(depId) === -1) modId.push(depId);
+                            }
+                        }
+                    }
+                    // 根据依赖关系返回替换字符串
+                    if ($2) {
+                        if (modId.length) {
+                            result = `define('${id}',['${modId.join('\',\'')}'],`;
+                        } else {
+                            result = `define('${id}',[],`;
+                        }
+                    } else if (deps.length) {
+                        result = `define('${id}',['${deps.join('\',\'')}'],`;
+                    } else {
+                        result = `define('${id}',[],`;
+                    }
+                    return result;
+                });
+            }
+        }
     } else {
         contents = contents.replace(rSeajsUse, function ($) {
             var result = $;
-
             if (~$.indexOf('fang.use(')) {
                 result = $.replace(rDeps, function ($, _, $2) {
                     var tmpResult = $,
                         depPathResult, depId;
-
                     if ($2 && $2.slice(0, 4) !== 'http' && $2.slice(0, 2) !== '//') {
                         depPathResult = modPathResolve(options, $2);
                         depId = depPathResult.id;
-
                         tmpResult = `'${depId}'`;
                     }
-
                     return tmpResult;
                 });
             }
-
             return result;
         });
     }
-
     return contents;
 }
 
@@ -713,13 +818,23 @@ function setIdMap(options, allArr) {
  */
 function paseAsyncContent(options, cb) {
     var arr = options.asyncTemMod,
-        contents = '',
-        num = arr.length - 1;
+        contents = '';
     arr.reverse();
+    // 依赖过的模块不在异步加载
+    for (var i = arr.length - 1; i > -1; i--) {
+        for (var j = 0, len = options.modArr.length; j < len; j++) {
+            if (options.modArr[j].origId === arr[i].origId) {
+                arr.splice(i, 1);
+                break;
+            }
+        }
+    }
     if (!options.asyncTemMod.length) {
         cb && cb(options.asyncModArr);
         return;
     }
+
+    var num = arr.length - 1;
     var preAsyncContent = function () {
         var item = arr[num];
         options.modArr = [];
@@ -783,7 +898,6 @@ function paseAsyncContent(options, cb) {
                 console.log(chalk.red(PLUGIN_NAME + ' error: File [' + item.path + '] not found.'));
             }
         }
-
     };
     preAsyncContent();
 }

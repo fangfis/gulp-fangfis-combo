@@ -29,7 +29,7 @@ var writeFile = function (fileData) {
 var a = function () {
     delFn(function () {
         gulp
-            .src('/Users/tankunpeng/WebSite/gulp-fangfis-combo/test/map/js/modules/xf/main.js', {
+            .src('/Users/tankunpeng/WebSite/gulp-fangfis-combo/test/map/js/modules/esf/main.js', {
                 base: 'map/js'
             })
             .pipe(seajsCombo({
@@ -38,7 +38,8 @@ var a = function () {
                 config: {
                     alias: {
                         jquery: 'jquery',
-                        util: 'plugins/util'
+                        util: 'plugins/util',
+                        BMapLib:'bmap/BMapLib-min'
                     },
                     paths: {
                         count: '//js.soufunimg.com',
