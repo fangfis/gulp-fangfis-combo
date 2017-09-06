@@ -16,7 +16,7 @@ var writeFile = function (fileData) {
         readable._read = function () {
             this.push(new Vinyl({
                 path: item.path,
-                base: 'map/js',
+                base: 'dev/js',
                 contents: new Buffer(item.contents)
             }));
             this.push(null);
@@ -29,11 +29,11 @@ var writeFile = function (fileData) {
 var a = function () {
     delFn(function () {
         gulp
-            .src(['/Users/tankunpeng/WebSite/gulp-fangfis-combo/test/map/js/modules/xf/main.js','/Users/tankunpeng/WebSite/gulp-fangfis-combo/test/map/js/modules/esf/main.js'], {
-                base: 'map/js'
+            .src(['/Users/tankunpeng/WebSite/gulp-fangfis-combo/test/dev/js/modules/channel/main.js'], {
+                base: 'dev/js'
             })
             .pipe(seajsCombo({
-                base: 'map/js',
+                base: 'dev/js',
                 ignore: ['jquery'],
                 config: {
                     alias: {

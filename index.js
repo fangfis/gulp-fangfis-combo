@@ -123,6 +123,7 @@ function parseConfig(contents) {
  * return { Array } 依赖模块的绝对路径列表
  */
 function margeConfig(options, origId) {
+    if (!origId) return;
     var config = options.config,
         arr, modId;
     // 处理build.json => map
@@ -871,8 +872,8 @@ function paseAsyncContent(options, cb) {
                     }
                     preAsyncContent();
                 });
-            } catch (_) {
-                console.log(chalk.red(PLUGIN_NAME + ' error: File [' + item.path + '] not found.'));
+            } catch (err) {
+                console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message + '.'));
             }
         }
     };
