@@ -189,4 +189,4 @@ fang.use( 'a' );
 
 ## License
 
-MIT @ [Yiguo Chan](https://github.com/fangfis/)
+MIT @ [Fang](https://github.com/fangfis/)
