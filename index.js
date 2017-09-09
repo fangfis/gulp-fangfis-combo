@@ -720,6 +720,8 @@ function getorigIdbyBase(options, filePath, asyncFlag) {
     var base = path.resolve(options.base) || path.resolve(filePath, '..');
     var diffPath = filePath.replace(base, '');
     var origId = '';
+    // 兼容windows下路径
+    diffPath = diffPath.replace(/\\/g, '/');
     if (diffPath.charAt(0) === '/') {
         var arr = diffPath.split('');
         arr.shift();
