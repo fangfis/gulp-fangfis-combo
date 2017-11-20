@@ -1,7 +1,7 @@
 # gulp-fangfis-combo
 
 ***
-> 一个用于 fangfis(CMD) 模块合并工具的 gulp 插件,支持异步调用模块合并2。
+> 一个用于 fangfis(CMD) 模块合并工具的 gulp 插件,支持异步调用模块合并。
 
 ## 安装
 
