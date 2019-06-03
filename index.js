@@ -687,10 +687,10 @@ function comboContent(options) {
     options.modArr.forEach(function(item) {
         var base = options.base || path.resolve(item.path, '..');
         var origPath = getorigPath(item.path, base);
-        if (!fileMap[origPath]) {
-            fileMap[origPath] = true;
-            newModArr.push(item);
-        }
+        // if (!fileMap[origPath]) {
+        fileMap[origPath] = true;
+        newModArr.push(item);
+        // }
     });
 
     if (newModArr.length > 0) console.log(chalk.cyan(PLUGIN_NAME + ': '), 'Module ' + chalk.yellow(newModArr[0].origId + ' starting combo'));
