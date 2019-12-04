@@ -1,6 +1,6 @@
 {
   "name": "gulp-fangfis-combo",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "fangfis(CMD) Module combo pulgin for gulp",
   "homepage": "https://github.com/fangfis/gulp-fangfis-combo",
   "author": {
@@ -23,15 +23,15 @@
     "test": "mocha"
   },
   "dependencies": {
-    "chalk": "^2.1.0",
-    "through2": "^0.6.0",
-    "vinyl": "^0.4.6"
+    "chalk": "^3.0.0",
+    "through2": "^3.0.1",
+    "vinyl": "^2.2.0"
   },
   "devDependencies": {
-    "del": "^3.0.0",
-    "gulp": "^3.9.1",
-    "should": "^4.6.5",
-    "stream-assert": "^2.0.2"
+    "del": "^5.1.0",
+    "gulp": "^4.0.2",
+    "should": "^13.2.3",
+    "stream-assert": "^2.0.3"
   },
   "license": "MIT"
 }

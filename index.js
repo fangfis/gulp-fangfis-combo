@@ -280,8 +280,8 @@ function readDeps(options, parentDeps) {
         try {
             contents = fs.readFileSync(filePath, options.encoding);
         } catch (_) {
-            console.log(chalk.red(PLUGIN_NAME + ' error: File [' + filePath + '] not found.'));
-            return;
+            console.log(chalk.red(PLUGIN_NAME + ' 错误: 文件 [' + filePath + '] 未找到.'));
+            process.exit();
         }
 
         deps = parseDeps(options, contents, item);
@@ -310,8 +310,9 @@ function readDeps(options, parentDeps) {
             return readDeps(options, childDeps);
         }
     } catch (err) {
-        console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message));
+        console.log(chalk.red(PLUGIN_NAME + ' 错误: ' + err.message));
         console.log(err.stack);
+        process.exit();
     }
 }
 
@@ -338,9 +339,11 @@ function pullDeps(options, reg, contents, modData) {
             var filePath = modData ? modData.path : '';
             var code = m;
             code = m.replace(/[\r\n]*/g, '');
-            console.log(chalk.yellow(`${PLUGIN_NAME} warning:`), chalk.gray(err.message));
-            console.log(chalk.yellow('                   file path:'), chalk.gray(filePath));
-            console.log(chalk.yellow('                   code snippet:'), chalk.gray(code));
+            console.log(chalk.red(`${PLUGIN_NAME} 错误:`), chalk.gray(err.message));
+            console.log(chalk.red('                   文件路径:'), chalk.gray(filePath));
+            console.log(chalk.red('                   代码段提示:'), chalk.gray(code));
+            console.log(chalk.red('提示!!:'), chalk.red(`不支持变量模块名,请修改require.async或require引入方式`));
+            process.exit();
         }
         if (m1) {
             if (typeof m1 === 'string') {
@@ -398,9 +401,11 @@ function pullDefineDeps(options, reg, contents, modData) {
             var filePath = modData ? modData.path : '';
             var code = m;
             code = m.replace(/[\r\n]*/g, '');
-            console.log(chalk.yellow(`${PLUGIN_NAME} warning:`), chalk.gray(err.message));
-            console.log(chalk.yellow('                   file path:'), chalk.gray(filePath));
-            console.log(chalk.yellow('                   code snippet:'), chalk.gray(code));
+            console.log(chalk.red(`${PLUGIN_NAME} 错误:`), chalk.gray(err.message));
+            console.log(chalk.red('                   文件路径:'), chalk.gray(filePath));
+            console.log(chalk.red('                   代码段提示:'), chalk.gray(code));
+            console.log(chalk.red('提示!!:'), chalk.red(`不支持变量模块名,请修改require.async或require引入方式`));
+            process.exit();
         }
         if (m2) {
             if (Array.isArray(m2)) {
@@ -622,6 +627,7 @@ function transform(options, modData, index) {
                             modArr = eval($2);
                         } catch (err) {
                             console.log(err);
+                            process.exit();
                         }
                     }
                     if (modArr && modArr.length) {
@@ -693,12 +699,12 @@ function comboContent(options) {
         // }
     });
 
-    if (newModArr.length > 0) console.log(chalk.cyan(PLUGIN_NAME + ': '), 'Module ' + chalk.yellow(newModArr[0].origId + ' starting combo'));
+    if (newModArr.length > 0) console.log(chalk.cyan(PLUGIN_NAME + ': '), '入口模块 ' + chalk.yellow(newModArr[0].origId + ' 开始合并..'));
     newModArr.forEach(function(item, index) {
         var newContents = transform(options, item, index);
         if (newContents) {
             var pathStr = path.extname(item.path) ? item.path : item.path + '.js';
-            console.log(chalk.green('                     ✔ Module ' + pathStr));
+            console.log(chalk.green('                     ✔ 依赖模块 ' + pathStr));
             contents = newContents + '\n' + contents;
         }
     });
@@ -829,7 +835,7 @@ function paseAsyncContent(options, cb) {
         if (item.origId.slice(0, 4) === 'http' || item.origId.slice(0, 2) === '//') {
             arr.pop();
             item.asyncMod = true;
-            num--;
+            num = arr.length - 1;
             if (num < 0) {
                 paseAsyncContent(options, cb);
                 return;
@@ -866,7 +872,7 @@ function paseAsyncContent(options, cb) {
                         fileInfo.contents = contents.toString();
                         options.asyncModArr.push(fileInfo);
                     }
-                    num--;
+                    num = arr.length - 1;
                     if (num < 0) {
                         paseAsyncContent(options, cb);
                         return;
@@ -874,7 +880,8 @@ function paseAsyncContent(options, cb) {
                     preAsyncContent();
                 });
             } catch (err) {
-                console.log(chalk.red(PLUGIN_NAME + ' error: ' + err.message + '.'));
+                console.log(chalk.red(PLUGIN_NAME + ' 错误: ' + err.message + '.'));
+                process.exit();
             }
         }
     };
